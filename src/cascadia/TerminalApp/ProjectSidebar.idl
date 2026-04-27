@@ -1,0 +1,19 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass ProjectSidebar : Windows.UI.Xaml.Controls.UserControl
+    {
+        ProjectSidebar();
+
+        void Refresh();
+        void SetSessionActive(String projectId, Boolean active);
+        void UpdateContextUsage(String projectId, UInt32 usedTokens, UInt32 totalTokens);
+
+        event Windows.Foundation.TypedEventHandler<Object, String> OpenTerminalRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> StartAIRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> StopAIRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> OpenUrlRequested;
+    }
+}

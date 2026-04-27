@@ -325,6 +325,11 @@ namespace winrt::TerminalApp::implementation
         _tabView = _tabRow.TabView();
         _rearranging = false;
 
+        // Wire up ClickTerminal project sidebar events
+        Sidebar().OpenTerminalRequested({ get_weak(), &TerminalPage::_SidebarOpenTerminalRequested });
+        Sidebar().StartAIRequested({ get_weak(), &TerminalPage::_SidebarStartAIRequested });
+        Sidebar().StopAIRequested({ get_weak(), &TerminalPage::_SidebarStopAIRequested });
+
         const auto canDragDrop = CanDragDrop();
 
         _tabView.CanReorderTabs(canDragDrop);
@@ -5826,5 +5831,59 @@ namespace winrt::TerminalApp::implementation
         profileMenuItemFlyout.Items().Append(runAsAdminItem);
 
         return profileMenuItemFlyout;
+    }
+
+    // ClickTerminal: Open a terminal tab in the project's folder
+    void TerminalPage::_SidebarOpenTerminalRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                      const winrt::hstring& projectId)
+    {
+        auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar());
+        if (!sidebar) return;
+
+        auto& pm = sidebar->ProjectManagerRef();
+        auto project = pm.GetProjectById(std::wstring{ projectId });
+        if (!project) return;
+
+        Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
+        args.StartingDirectory(project->FolderPath);
+        _OpenNewTerminalViaDropdown(args);
+
+        pm.TouchProject(std::wstring{ projectId });
+    }
+
+    // ClickTerminal: Launch AI tool in the project's folder
+    void TerminalPage::_SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                 const winrt::hstring& projectId)
+    {
+        auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar());
+        if (!sidebar) return;
+
+        auto& pm = sidebar->ProjectManagerRef();
+        auto project = pm.GetProjectById(std::wstring{ projectId });
+        if (!project) return;
+
+        const auto& toolName = project->AIConfig.DefaultTool;
+        ClickTerminal::AITool tool = ClickTerminal::AITool::Claude;
+        if (toolName == L"codex") tool = ClickTerminal::AITool::Codex;
+        else if (toolName == L"gemini") tool = ClickTerminal::AITool::Gemini;
+
+        ClickTerminal::AIToolManager aimgr;
+        auto launchCmd = aimgr.GetLaunchCommand(*project, tool, false);
+
+        Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
+        args.StartingDirectory(project->FolderPath);
+        args.Commandline(launchCmd.ToCommandLine());
+        _OpenNewTerminalViaDropdown(args);
+
+        Sidebar().SetSessionActive(projectId, true);
+    }
+
+    // ClickTerminal: Stop AI session for a project
+    void TerminalPage::_SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                const winrt::hstring& projectId)
+    {
+        // For now, just update the sidebar state.
+        // Full implementation requires tracking which pane runs the AI session.
+        Sidebar().SetSessionActive(projectId, false);
     }
 }

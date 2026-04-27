@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Development stub for Microsoft.DesktopBridge.props
+  The real file is installed by VS2022 UWP Build Tools workload.
+  This stub allows local dev builds without the full UWP workload.
+  DO NOT use this for release/store builds.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AppContainerApplication Condition="'$(AppContainerApplication)' == ''">false</AppContainerApplication>
+    <AppxPackage Condition="'$(AppxPackage)' == ''">true</AppxPackage>
+    <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)' == ''">false</AppxPackageSigningEnabled>
+    <AppxAutoIncrementPackageRevision Condition="'$(AppxAutoIncrementPackageRevision)' == ''">false</AppxAutoIncrementPackageRevision>
+    <AppxSymbolPackageEnabled Condition="'$(AppxSymbolPackageEnabled)' == ''">false</AppxSymbolPackageEnabled>
+    <DesktopBridgeDesktopOSMinVersion Condition="'$(DesktopBridgeDesktopOSMinVersion)' == ''">10.0.17763.0</DesktopBridgeDesktopOSMinVersion>
+    <EnableSigningChecks Condition="'$(EnableSigningChecks)' == ''">false</EnableSigningChecks>
+  </PropertyGroup>
+</Project>

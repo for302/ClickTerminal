@@ -1,0 +1,75 @@
+<UserControl
+    x:Class="ClickTerminal.ContextMeter"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    d:DesignHeight="20"
+    d:DesignWidth="100"
+    ToolTipService.ToolTip="{x:Bind ToolTipText, Mode=OneWay}">
+
+    <UserControl.Resources>
+        <!-- Filled: accent color, slightly rounded bar -->
+        <Style x:Key="SegFilled" TargetType="Rectangle">
+            <Setter Property="Width"           Value="5"/>
+            <Setter Property="Height"          Value="13"/>
+            <Setter Property="RadiusX"         Value="1"/>
+            <Setter Property="RadiusY"         Value="1"/>
+            <Setter Property="Fill"            Value="{ThemeResource SystemAccentColor}"/>
+        </Style>
+
+        <!-- Empty: outline only -->
+        <Style x:Key="SegEmpty" TargetType="Rectangle">
+            <Setter Property="Width"           Value="5"/>
+            <Setter Property="Height"          Value="13"/>
+            <Setter Property="RadiusX"         Value="1"/>
+            <Setter Property="RadiusY"         Value="1"/>
+            <Setter Property="Fill"            Value="Transparent"/>
+            <Setter Property="Stroke"          Value="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+        </Style>
+
+        <!-- Warning (>70%): amber -->
+        <SolidColorBrush x:Key="SegWarning"  Color="#F0A500"/>
+        <!-- Critical (>90%): red -->
+        <SolidColorBrush x:Key="SegCritical" Color="#E81123"/>
+    </UserControl.Resources>
+
+    <Grid VerticalAlignment="Center">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>  <!-- "CTX" label -->
+            <ColumnDefinition Width="Auto"/>  <!-- 10 segments -->
+        </Grid.ColumnDefinitions>
+
+        <TextBlock
+            Grid.Column="0"
+            Text="CTX"
+            FontSize="9"
+            FontFamily="Cascadia Code, Consolas, monospace"
+            Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+            VerticalAlignment="Center"
+            Margin="0,0,4,0"/>
+
+        <!-- 10 thin segments, 2px gap between each -->
+        <!-- Filled/empty state and color set from code-behind -->
+        <StackPanel
+            Grid.Column="1"
+            x:Name="SegmentPanel"
+            Orientation="Horizontal"
+            Spacing="2"
+            VerticalAlignment="Center">
+
+            <Rectangle x:Name="Seg0"/>
+            <Rectangle x:Name="Seg1"/>
+            <Rectangle x:Name="Seg2"/>
+            <Rectangle x:Name="Seg3"/>
+            <Rectangle x:Name="Seg4"/>
+            <Rectangle x:Name="Seg5"/>
+            <Rectangle x:Name="Seg6"/>
+            <Rectangle x:Name="Seg7"/>
+            <Rectangle x:Name="Seg8"/>
+            <Rectangle x:Name="Seg9"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

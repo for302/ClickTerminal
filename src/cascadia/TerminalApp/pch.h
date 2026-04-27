@@ -98,3 +98,4 @@ TRACELOGGING_DECLARE_PROVIDER(g_hTerminalAppProvider);
 #include <til/winrt.h>
 
 #include <LibraryResources.h>
+#include <json/json.h>

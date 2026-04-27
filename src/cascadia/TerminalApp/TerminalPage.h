@@ -15,6 +15,8 @@
 #include "Toast.h"
 
 #include "WindowsPackageManagerFactory.h"
+#include "ProjectSidebar.h"
+#include "AIToolManager.h"
 
 #define DECLARE_ACTION_HANDLER(action) void _Handle##action(const IInspectable& sender, const Microsoft::Terminal::Settings::Model::ActionEventArgs& args);
 
@@ -326,6 +328,11 @@ namespace winrt::TerminalApp::implementation
         safe_void_coroutine _OpenNewWindow(const Microsoft::Terminal::Settings::Model::INewContentArgs newContentArgs);
 
         void _OpenNewTerminalViaDropdown(const Microsoft::Terminal::Settings::Model::NewTerminalArgs newTerminalArgs);
+
+        // ClickTerminal: project sidebar event handlers
+        void _SidebarOpenTerminalRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
+        void _SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
+        void _SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
 
         bool _displayingCloseDialog{ false };
         void _SettingsButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

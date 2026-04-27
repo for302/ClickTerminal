@@ -4,6 +4,19 @@
     Any build logic in this file must be optional and only apply to non-release builds.
   -->
 
+  <!-- ClickTerminal dev: generated header paths for local builds -->
+  <PropertyGroup>
+    <_WinRTGenerated>$(MSBuildThisFileDirectory)src\cascadia\TerminalSettingsModel\Generated Files</_WinRTGenerated>
+    <_WinRTGenerated2>$(MSBuildThisFileDirectory)src\cascadia\TerminalSettingsModel\dll\Generated Files</_WinRTGenerated2>
+    <_ProxyGenerated>$(MSBuildThisFileDirectory)obj\x64\$(Configuration)\OpenConsoleProxy</_ProxyGenerated>
+    <_ClickTerminalSrc>$(MSBuildThisFileDirectory)src\ClickTerminal</_ClickTerminalSrc>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(_WinRTGenerated);$(_WinRTGenerated2);$(_ProxyGenerated);$(_ClickTerminalSrc);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
   <!-- MsBuildCache -->
   <PropertyGroup>
     <!-- Off by default -->

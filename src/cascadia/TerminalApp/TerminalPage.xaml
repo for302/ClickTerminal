@@ -56,13 +56,26 @@
             </mux:InfoBar>
         </StackPanel>
 
-        <Grid x:Name="TabContent"
-              Grid.Row="2"
+        <Grid Grid.Row="2"
               HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
-            <Grid.Background>
-                <ImageBrush />
-            </Grid.Background>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarColumn"
+                                  Width="250" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <local:ProjectSidebar x:Name="Sidebar"
+                                  Grid.Column="0" />
+
+            <Grid x:Name="TabContent"
+                  Grid.Column="1"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch">
+                <Grid.Background>
+                    <ImageBrush />
+                </Grid.Background>
+            </Grid>
         </Grid>
 
         <!--

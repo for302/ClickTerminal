@@ -1,0 +1,124 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://clickterminal.dev/schemas/clickterminal-schema.json",
+    "title": "ClickTerminal Configuration",
+    "type": "object",
+    "properties": {
+        "$version": { "type": "integer", "const": 1 },
+
+        "projects": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "name", "type", "folderPath"],
+                "properties": {
+                    "id":               { "type": "string", "pattern": "^proj-[0-9a-f-]{36}$" },
+                    "name":             { "type": "string" },
+                    "type":             { "type": "string", "enum": ["web", "app", "ai-workflow"] },
+                    "folderPath":       { "type": "string" },
+                    "colorScheme":      { "type": "string" },
+                    "startupCommand":   { "type": "string" },
+                    "icon":             { "type": "string" },
+                    "tags":             { "type": "array", "items": { "type": "string" } },
+                    "createdAt":        { "type": "string", "format": "date-time" },
+                    "lastOpenedAt":     { "type": "string", "format": "date-time" },
+                    "terminalProfile":  { "type": "string" },
+                    "ports": {
+                        "type": "array",
+                        "items": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                    },
+                    "urls": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["label", "url"],
+                            "properties": {
+                                "label":       { "type": "string" },
+                                "url":         { "type": "string", "format": "uri" },
+                                "openOnStart": { "type": "boolean", "default": false }
+                            }
+                        }
+                    },
+                    "aiTool": {
+                        "type": "object",
+                        "properties": {
+                            "defaultTool": { "type": "string", "enum": ["claude", "codex", "gemini"] },
+                            "claude": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled":                      { "type": "boolean" },
+                                    "dangerouslySkipPermissions":   { "type": "boolean", "default": false },
+                                    "permissionMode":               { "type": "string", "enum": ["default", "acceptEdits", "bypassPermissions", "plan", "auto"] },
+                                    "model":                        { "type": "string" },
+                                    "mcpConfigPath":                { "type": "string" },
+                                    "appendSystemPrompt":           { "type": "string" },
+                                    "addDirs":                      { "type": "array", "items": { "type": "string" } }
+                                }
+                            },
+                            "codex": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled":         { "type": "boolean" },
+                                    "approvalMode":    { "type": "string", "enum": ["suggest", "auto-edit", "full-auto"] },
+                                    "model":           { "type": "string" }
+                                }
+                            },
+                            "gemini": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled": { "type": "boolean" },
+                                    "model":   { "type": "string" }
+                                }
+                            }
+                        }
+                    },
+                    "env": {
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
+                    }
+                }
+            }
+        },
+
+        "aiTools": {
+            "type": "object",
+            "properties": {
+                "claude": { "$ref": "#/definitions/installedToolConfig" },
+                "codex":  { "$ref": "#/definitions/installedToolConfig" },
+                "gemini": { "$ref": "#/definitions/installedToolConfig" }
+            }
+        },
+
+        "globalSettings": {
+            "type": "object",
+            "properties": {
+                "language":              { "type": "string" },
+                "theme":                 { "type": "string", "enum": ["system", "light", "dark"] },
+                "showProjectSidebar":    { "type": "boolean", "default": true },
+                "sidebarWidth":          { "type": "integer", "default": 240 },
+                "showPortBadges":        { "type": "boolean", "default": true },
+                "showUrlQuickLaunch":    { "type": "boolean", "default": true },
+                "showAIToolBar":         { "type": "boolean", "default": true },
+                "contextMeterPosition":  { "type": "string", "enum": ["statusBar", "sidebar", "hidden"] },
+                "defaultAITool":         { "type": "string", "enum": ["claude", "codex", "gemini"] },
+                "windowRestoreMode":     { "type": "string", "enum": ["lastSession", "empty", "defaultProject"] },
+                "telemetry":             { "type": "boolean", "default": false }
+            }
+        }
+    },
+
+    "definitions": {
+        "installedToolConfig": {
+            "type": "object",
+            "properties": {
+                "installed":            { "type": "boolean" },
+                "executablePath":       { "type": "string" },
+                "version":              { "type": "string" },
+                "authType":             { "type": "string", "enum": ["oauth", "apiKey", "none"] },
+                "authConfigPath":       { "type": "string" },
+                "contextWindowTokens":  { "type": "integer" },
+                "contextMeterEnabled":  { "type": "boolean" }
+            }
+        }
+    }
+}

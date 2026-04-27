@@ -1,0 +1,62 @@
+{
+    "$schema": "https://clickterminal.dev/schemas/clickterminal-schema.json",
+    "$version": 1,
+
+    "projects": [],
+
+    "aiTools": {
+        "claude": {
+            "installed": false,
+            "executablePath": "",
+            "version": "",
+            "authType": "oauth",
+            "authConfigPath": "",
+            "contextWindowTokens": 200000,
+            "contextMeterEnabled": true,
+            "defaultOptions": {
+                "model": "claude-sonnet-4-6",
+                "permissionMode": "default",
+                "dangerouslySkipPermissions": false
+            }
+        },
+        "codex": {
+            "installed": false,
+            "executablePath": "",
+            "version": "",
+            "authType": "oauth",
+            "authConfigPath": "",
+            "contextWindowTokens": 128000,
+            "contextMeterEnabled": false,
+            "defaultOptions": {
+                "model": "gpt-5.4",
+                "approvalMode": "suggest"
+            }
+        },
+        "gemini": {
+            "installed": false,
+            "executablePath": "",
+            "version": "",
+            "authType": "apiKey",
+            "authConfigPath": "",
+            "contextWindowTokens": 1000000,
+            "contextMeterEnabled": false,
+            "defaultOptions": {
+                "model": "gemini-2.5-pro"
+            }
+        }
+    },
+
+    "globalSettings": {
+        "language": "ko-KR",
+        "theme": "system",
+        "showProjectSidebar": true,
+        "sidebarWidth": 240,
+        "showPortBadges": true,
+        "showUrlQuickLaunch": true,
+        "showAIToolBar": true,
+        "contextMeterPosition": "statusBar",
+        "defaultAITool": "claude",
+        "windowRestoreMode": "lastSession",
+        "telemetry": false
+    }
+}
