@@ -17,6 +17,9 @@ namespace winrt::TerminalApp::implementation
         void OnNewTabButtonDrop(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::UI::Xaml::DragEventArgs& e);
         void OnNewTabButtonDragOver(const winrt::Windows::Foundation::IInspectable& sender, const winrt::Windows::UI::Xaml::DragEventArgs& e);
 
+        // Apply CTux theme colors directly (called from TerminalPage)
+        void ApplyTheme(winrt::Windows::UI::Color tabBarBg, winrt::Windows::UI::Color textColor);
+
         til::property_changed_event PropertyChanged;
         WINRT_OBSERVABLE_PROPERTY(bool, ShowElevationShield, PropertyChanged.raise, false);
     };

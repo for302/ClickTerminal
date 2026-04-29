@@ -5,6 +5,7 @@
 #include "TabRowControl.h"
 
 #include "TabRowControl.g.cpp"
+#include <winrt/Windows.UI.Xaml.Shapes.h>
 
 using namespace winrt::Windows::ApplicationModel::DataTransfer;
 
@@ -47,6 +48,21 @@ namespace winrt::TerminalApp::implementation
     // Arguments:
     //  - <unused>
     //  - e: DragEventArgs which hold the items
+    void TabRowControl::ApplyTheme(winrt::Windows::UI::Color tabBarBg, winrt::Windows::UI::Color textColor)
+    {
+        try
+        {
+            auto bg = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ tabBarBg };
+            auto fg = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ textColor };
+            // Set tab strip background (ContentPresenter itself)
+            Background(bg);
+            // Set CTux header border background and text
+            CTuxHeaderBorder().Background(bg);
+            CTuxHeaderText().Foreground(fg);
+        }
+        catch (...) {}
+    }
+
     void TabRowControl::OnNewTabButtonDragOver(const IInspectable&, const winrt::Windows::UI::Xaml::DragEventArgs& e)
     {
         // We can only handle drag/dropping StorageItems (files).

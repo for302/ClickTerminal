@@ -19,7 +19,7 @@
 
   <Identity
     Name="WindowsTerminalDev"
-    Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    Publisher="CN=ClickTerminalDev"
     Version="0.0.1.0" />
 
   <Properties>
@@ -27,6 +27,7 @@
     <PublisherDisplayName>A Lone Developer</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
     <!-- Older versions of Windows 10 respect this -->
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
     <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
     <!-- Newer versions of Windows 10 plus all versions of Windows 11 respect this -->
     <virtualization:RegistryWriteVirtualization>

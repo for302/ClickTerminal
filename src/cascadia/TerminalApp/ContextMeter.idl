@@ -1,0 +1,12 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass ContextMeter : Windows.UI.Xaml.Controls.UserControl
+    {
+        ContextMeter();
+        void SetUsage(UInt32 usedTokens, UInt32 totalTokens);
+        void Reset();
+    }
+}

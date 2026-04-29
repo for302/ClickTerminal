@@ -9,19 +9,12 @@
                   xmlns:local="using:TerminalApp"
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                   xmlns:mux="using:Microsoft.UI.Xaml.Controls"
-                  Background="{ThemeResource TabViewBackground}"
+                  Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
                   mc:Ignorable="d">
 
     <!--
         GH#13143: Make sure that the Background is actually TabViewBackground
         here, not Transparent. This is load bearing, for showTabsInTitlebar=false.
-    -->
-
-    <!--
-        Set the padding to -1 on the bottom. This prevents a small 1px gap that
-        can appear on 150% scale displays between the tab item and the content.
-        The 1 on top helps keep the tab the correct relative height within the
-        tab row.
     -->
 
     <mux:TabView x:Name="TabView"
@@ -35,14 +28,25 @@
                  TabWidthMode="Equal">
 
         <mux:TabView.TabStripHeader>
-            <!--  EA18 is the "Shield" glyph  -->
-            <FontIcon x:Uid="ElevationShield"
-                      Margin="9,4,0,4"
-                      FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                      FontSize="16"
-                      Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
-                      Glyph="&#xEA18;"
-                      Visibility="{x:Bind ShowElevationShield, Mode=OneWay}" />
+            <StackPanel Orientation="Horizontal">
+                <Border x:Name="CTuxHeaderBorder"
+                        Width="250">
+                    <TextBlock x:Name="CTuxHeaderText"
+                               Text="CTux"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Margin="14,0,0,0" />
+                </Border>
+                <!--  EA18 is the "Shield" glyph  -->
+                <FontIcon x:Uid="ElevationShield"
+                          Margin="4,4,0,4"
+                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                          FontSize="16"
+                          Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                          Glyph="&#xEA18;"
+                          Visibility="{x:Bind ShowElevationShield, Mode=OneWay}" />
+            </StackPanel>
         </mux:TabView.TabStripHeader>
 
         <mux:TabView.TabStripFooter>

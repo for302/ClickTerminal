@@ -23,6 +23,9 @@
 #include "SnippetsPaneContent.h"
 #include "TabRowControl.h"
 #include "TerminalSettingsCache.h"
+#include "CTuxSettings.h"
+#include <ShlObj.h>
+#include <fstream>
 
 #include "LaunchPositionRequest.g.cpp"
 #include "RenameWindowRequestedArgs.g.cpp"
@@ -315,10 +318,19 @@ namespace winrt::TerminalApp::implementation
         return true;
     }
 
+    // ClickTerminal: startup crash diagnostic
+    static void _CrashLog(const wchar_t* msg)
+    {
+        std::wofstream f(L"C:\\Users\\Public\\ctux-crash.log", std::ios::app);
+        if (f.is_open()) f << msg << L"\n";
+    }
+
     void TerminalPage::Create()
     {
+        _CrashLog(L"[Create] start");
         // Hookup the key bindings
         _HookupKeyBindings(_settings.ActionMap());
+        _CrashLog(L"[Create] HookupKeyBindings OK");
 
         _tabContent = this->TabContent();
         _tabRow = this->TabRow();
@@ -326,9 +338,36 @@ namespace winrt::TerminalApp::implementation
         _rearranging = false;
 
         // Wire up ClickTerminal project sidebar events
+        _CrashLog(L"[Create] wiring sidebar events");
         Sidebar().OpenTerminalRequested({ get_weak(), &TerminalPage::_SidebarOpenTerminalRequested });
+        _CrashLog(L"[Create] OpenTerminalRequested wired");
         Sidebar().StartAIRequested({ get_weak(), &TerminalPage::_SidebarStartAIRequested });
+        _CrashLog(L"[Create] StartAIRequested wired");
         Sidebar().StopAIRequested({ get_weak(), &TerminalPage::_SidebarStopAIRequested });
+        _CrashLog(L"[Create] StopAIRequested wired");
+        Sidebar().CTuxThemeChanged({ get_weak(), &TerminalPage::_SidebarCTuxThemeChanged });
+        _CrashLog(L"[Create] CTuxThemeChanged wired");
+
+        // Apply saved CTux theme to tab row at startup
+        {
+            _CrashLog(L"[Create] loading CTux theme");
+            auto ctuxSettings = ClickTerminal::CTuxSettings::Load();
+            _CrashLog(L"[Create] CTuxSettings loaded");
+            auto initTheme = ctuxSettings.GetActiveTheme();
+            _CrashLog(L"[Create] GetActiveTheme OK");
+            auto parseColor = [](const std::wstring& hex) -> winrt::Windows::UI::Color {
+                std::wstring h = hex;
+                if (!h.empty() && h[0] == L'#') h = h.substr(1);
+                uint32_t v = 0;
+                for (auto c : h) { v <<= 4; if (c >= L'0' && c <= L'9') v |= c - L'0'; else if (c >= L'a' && c <= L'f') v |= c - L'a' + 10; else if (c >= L'A' && c <= L'F') v |= c - L'A' + 10; }
+                if (h.size() == 6) return { 0xFF, uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
+                return { 0xFF, 0x40, 0x40, 0x40 };
+            };
+            auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
+            _CrashLog(L"[Create] got tabRowImpl");
+            tabRowImpl->ApplyTheme(parseColor(initTheme.Colors.TabBarBg), parseColor(initTheme.Colors.SidebarText));
+            _CrashLog(L"[Create] ApplyTheme OK");
+        }
 
         const auto canDragDrop = CanDragDrop();
 
@@ -5846,12 +5885,18 @@ namespace winrt::TerminalApp::implementation
 
         Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
         args.StartingDirectory(project->FolderPath);
-        _OpenNewTerminalViaDropdown(args);
 
+        if (!project->Name.empty())
+            args.TabTitle(project->Name);
+
+        if (!project->ColorScheme.empty())
+            args.ColorScheme(project->ColorScheme);
+
+        _OpenNewTerminalViaDropdown(args);
         pm.TouchProject(std::wstring{ projectId });
     }
 
-    // ClickTerminal: Launch AI tool in the project's folder
+    // ClickTerminal: Launch AI tool in a new tab at the project's folder
     void TerminalPage::_SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                  const winrt::hstring& projectId)
     {
@@ -5864,7 +5909,7 @@ namespace winrt::TerminalApp::implementation
 
         const auto& toolName = project->AIConfig.DefaultTool;
         ClickTerminal::AITool tool = ClickTerminal::AITool::Claude;
-        if (toolName == L"codex") tool = ClickTerminal::AITool::Codex;
+        if (toolName == L"codex")       tool = ClickTerminal::AITool::Codex;
         else if (toolName == L"gemini") tool = ClickTerminal::AITool::Gemini;
 
         ClickTerminal::AIToolManager aimgr;
@@ -5873,17 +5918,147 @@ namespace winrt::TerminalApp::implementation
         Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
         args.StartingDirectory(project->FolderPath);
         args.Commandline(launchCmd.ToCommandLine());
+        args.TabTitle(project->Name + L" [" + toolName + L"]");
+
+        // Record tab count before opening so we can track the new tab
+        const uint32_t tabsBefore = _tabs.Size();
         _OpenNewTerminalViaDropdown(args);
+
+        // The new tab should now be the last one
+        if (_tabs.Size() > tabsBefore)
+        {
+            auto newTab = _tabs.GetAt(_tabs.Size() - 1);
+            _aiSessionTabs[std::wstring{ projectId }] = winrt::make_weak(newTab);
+
+            // Subscribe to the connection's TerminalOutput to track context usage (Claude only)
+            if (tool == ClickTerminal::AITool::Claude)
+            {
+                if (auto tabImpl = _GetTabImpl(newTab))
+                {
+                    auto ctrl = tabImpl->GetActiveTerminalControl();
+                    if (ctrl)
+                    {
+                        auto conn = ctrl.Connection();
+                        if (conn)
+                        {
+                            auto pid = std::wstring{ projectId };
+                            auto weakPage = get_weak();
+
+                            auto token = conn.TerminalOutput([weakPage, pid](const winrt::array_view<const char16_t> data) {
+                                if (data.empty()) return;
+
+                                // Convert char array to string and look for Claude's JSON usage lines
+                                std::wstring ws(data.begin(), data.end());
+                                // Strip ANSI escape sequences (basic pattern: ESC [...m)
+                                std::wstring clean;
+                                clean.reserve(ws.size());
+                                bool inEsc = false;
+                                for (wchar_t c : ws)
+                                {
+                                    if (c == L'\x1b') { inEsc = true; continue; }
+                                    if (inEsc) { if ((c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z')) inEsc = false; continue; }
+                                    clean += c;
+                                }
+
+                                // Look for "input_tokens" in the cleaned output
+                                if (clean.find(L"input_tokens") == std::wstring::npos) return;
+
+                                // Try to parse a JSON object containing usage
+                                auto pos = clean.find(L"\"input_tokens\"");
+                                if (pos == std::wstring::npos) return;
+
+                                // Find the start of the enclosing object
+                                auto start = clean.rfind(L'{', pos);
+                                if (start == std::wstring::npos) return;
+                                auto end = clean.find(L'}', pos);
+                                if (end == std::wstring::npos) return;
+
+                                std::wstring json = clean.substr(start, end - start + 1);
+
+                                // Parse input_tokens value with simple search
+                                auto extractNum = [&](const std::wstring& key) -> uint32_t {
+                                    auto k = json.find(key);
+                                    if (k == std::wstring::npos) return 0;
+                                    k += key.size();
+                                    while (k < json.size() && !iswdigit(json[k])) ++k;
+                                    uint32_t val = 0;
+                                    while (k < json.size() && iswdigit(json[k])) { val = val * 10 + (json[k] - L'0'); ++k; }
+                                    return val;
+                                };
+
+                                uint32_t inputTokens  = extractNum(L"\"input_tokens\":");
+                                uint32_t cacheRead    = extractNum(L"\"cache_read_input_tokens\":");
+                                uint32_t outputTokens = extractNum(L"\"output_tokens\":");
+                                uint32_t used = inputTokens + cacheRead + outputTokens;
+
+                                if (used == 0) return;
+
+                                if (auto page = weakPage.get())
+                                {
+                                    page->Sidebar().UpdateContextUsage(hstring{ pid }, used, 200000);
+                                }
+                            });
+
+                            _aiOutputTokens[std::wstring{ projectId }] = token;
+                        }
+                    }
+                }
+            }
+        }
 
         Sidebar().SetSessionActive(projectId, true);
     }
 
-    // ClickTerminal: Stop AI session for a project
+    // ClickTerminal: Stop AI session — send /exit to the terminal, clean up
     void TerminalPage::_SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                 const winrt::hstring& projectId)
     {
-        // For now, just update the sidebar state.
-        // Full implementation requires tracking which pane runs the AI session.
+        auto id = std::wstring{ projectId };
+
+        // Send /exit to the AI session's terminal
+        auto it = _aiSessionTabs.find(id);
+        if (it != _aiSessionTabs.end())
+        {
+            if (auto tab = it->second.get())
+            {
+                if (auto tabImpl = _GetTabImpl(tab))
+                {
+                    auto ctrl = tabImpl->GetActiveTerminalControl();
+                    if (ctrl)
+                    {
+                        ctrl.SendInput(L"/exit\r\n");
+                    }
+                }
+            }
+            _aiSessionTabs.erase(it);
+        }
+
+        // Revoke output monitoring token
+        auto tokIt = _aiOutputTokens.find(id);
+        if (tokIt != _aiOutputTokens.end())
+        {
+            // Token revocation: the connection may already be gone, just erase
+            _aiOutputTokens.erase(tokIt);
+        }
+
         Sidebar().SetSessionActive(projectId, false);
+    }
+
+    // ClickTerminal: Propagate CTux theme change to the tab row
+    void TerminalPage::_SidebarCTuxThemeChanged(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                 const winrt::hstring& /*themeName*/)
+    {
+        auto ctuxSettings = ClickTerminal::CTuxSettings::Load();
+        auto newTheme = ctuxSettings.GetActiveTheme();
+        auto parseColor = [](const std::wstring& hex) -> winrt::Windows::UI::Color {
+            std::wstring h = hex;
+            if (!h.empty() && h[0] == L'#') h = h.substr(1);
+            uint32_t v = 0;
+            for (auto c : h) { v <<= 4; if (c >= L'0' && c <= L'9') v |= c - L'0'; else if (c >= L'a' && c <= L'f') v |= c - L'a' + 10; else if (c >= L'A' && c <= L'F') v |= c - L'A' + 10; }
+            if (h.size() == 6) return { 0xFF, uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
+            return { 0xFF, 0x40, 0x40, 0x40 };
+        };
+        auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
+        tabRowImpl->ApplyTheme(parseColor(newTheme.Colors.TabBarBg), parseColor(newTheme.Colors.SidebarText));
     }
 }

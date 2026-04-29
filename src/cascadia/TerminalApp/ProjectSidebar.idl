@@ -15,5 +15,6 @@ namespace TerminalApp
         event Windows.Foundation.TypedEventHandler<Object, String> StartAIRequested;
         event Windows.Foundation.TypedEventHandler<Object, String> StopAIRequested;
         event Windows.Foundation.TypedEventHandler<Object, String> OpenUrlRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> CTuxThemeChanged;
     }
 }

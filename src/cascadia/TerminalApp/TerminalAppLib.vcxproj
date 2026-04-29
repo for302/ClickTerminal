@@ -64,6 +64,18 @@
     <Page Include="ProjectSidebar.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="ContextMeter.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="AddProjectDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="AISetupPage.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="SettingsDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="HighlightedTextControlStyle.xaml">
       <Type>DefaultStyle</Type>
       <SubType>Designer</SubType>
@@ -129,8 +141,21 @@
     <ClInclude Include="ProjectSidebar.h">
       <DependentUpon>ProjectSidebar.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="ContextMeter.h">
+      <DependentUpon>ContextMeter.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="AddProjectDialog.h">
+      <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="AISetupPage.h">
+      <DependentUpon>AISetupPage.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="SettingsDialog.h">
+      <DependentUpon>SettingsDialog.xaml</DependentUpon>
+    </ClInclude>
     <ClInclude Include="ProjectManager.h" />
     <ClInclude Include="AIToolManager.h" />
+    <ClInclude Include="CTuxSettings.h" />
     <ClInclude Include="HighlightedTextControl.h">
       <DependentUpon>HighlightedTextControl.idl</DependentUpon>
     </ClInclude>
@@ -244,8 +269,21 @@
     <ClCompile Include="ProjectSidebar.cpp">
       <DependentUpon>ProjectSidebar.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="ContextMeter.cpp">
+      <DependentUpon>ContextMeter.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="AddProjectDialog.cpp">
+      <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="AISetupPage.cpp">
+      <DependentUpon>AISetupPage.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="SettingsDialog.cpp">
+      <DependentUpon>SettingsDialog.xaml</DependentUpon>
+    </ClCompile>
     <ClCompile Include="ProjectManager.cpp" />
     <ClCompile Include="AIToolManager.cpp" />
+    <ClCompile Include="CTuxSettingsManager.cpp" />
     <ClCompile Include="HighlightedTextControl.cpp">
       <DependentUpon>HighlightedTextControl.idl</DependentUpon>
     </ClCompile>
@@ -356,6 +394,22 @@
     </Midl>
     <Midl Include="ProjectSidebar.idl">
       <DependentUpon>ProjectSidebar.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="ContextMeter.idl">
+      <DependentUpon>ContextMeter.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="AddProjectDialog.idl">
+      <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="AISetupPage.idl">
+      <DependentUpon>AISetupPage.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="SettingsDialog.idl">
+      <DependentUpon>SettingsDialog.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="HighlightedTextControl.idl">

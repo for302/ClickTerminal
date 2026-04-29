@@ -333,6 +333,12 @@ namespace winrt::TerminalApp::implementation
         void _SidebarOpenTerminalRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
         void _SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
         void _SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
+        void _SidebarCTuxThemeChanged(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& themeName);
+
+        // ClickTerminal: active AI session state (projectId -> weak Tab reference)
+        std::unordered_map<std::wstring, winrt::weak_ref<winrt::TerminalApp::Tab>> _aiSessionTabs;
+        // Output monitor revocation tokens per session
+        std::unordered_map<std::wstring, winrt::event_token> _aiOutputTokens;
 
         bool _displayingCloseDialog{ false };
         void _SettingsButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

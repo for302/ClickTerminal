@@ -1,0 +1,377 @@
+<!--
+    Copyright (c) Microsoft Corporation. All rights reserved. Licensed under
+    the MIT License. See LICENSE in the project root for license information.
+-->
+<ContentDialog x:Class="TerminalApp.SettingsDialog"
+               xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+               xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+               CloseButtonText="Cancel"
+               DefaultButton="Primary"
+               PrimaryButtonText="Save"
+               Title="CTux Settings"
+               mc:Ignorable="d">
+
+    <ContentDialog.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ContentDialogSmokeBrush" Color="#99000000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ContentDialogSmokeBrush" Color="#99000000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="ContentDialogSmokeBrush" Color="#99000000" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </ContentDialog.Resources>
+
+    <Grid x:Name="ContentGrid"
+          Width="600"
+          Height="500">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="148" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left nav -->
+        <Border x:Name="NavPanel"
+                Grid.Column="0"
+                BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,1,0">
+            <ListView x:Name="NavList"
+                      Margin="0,4,0,0"
+                      SelectionChanged="_NavSelectionChanged"
+                      SelectionMode="Single">
+                <ListViewItem Content="General"
+                              Tag="general" />
+                <ListViewItem Content="Style"
+                              Tag="style" />
+                <ListViewItem Content="Plugins"
+                              Tag="plugins" />
+            </ListView>
+        </Border>
+
+        <!-- General panel -->
+        <ScrollViewer x:Name="GeneralPanel"
+                      Grid.Column="1"
+                      Padding="16,12,16,12">
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="13"
+                           FontWeight="SemiBold"
+                           Text="Projects Config File" />
+                <TextBlock FontSize="11"
+                           Opacity="0.65"
+                           Text="Path to clickterminal.json (leave empty for default)"
+                           TextWrapping="Wrap" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ConfigPathBox"
+                             Grid.Column="0"
+                             FontSize="11"
+                             PlaceholderText="%LocalAppData%\ClickTerminal\clickterminal.json" />
+                    <Button x:Name="BrowseConfigBtn"
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Click="_BrowseConfigClicked"
+                            Content="..." />
+                </Grid>
+
+                <TextBlock FontSize="13"
+                           FontWeight="SemiBold"
+                           Margin="0,10,0,0"
+                           Text="Updates" />
+                <StackPanel Orientation="Horizontal"
+                            Spacing="10">
+                    <Button x:Name="CheckUpdateBtn"
+                            Click="_CheckUpdateClicked"
+                            Content="Check for Updates" />
+                    <TextBlock x:Name="UpdateStatusText"
+                               VerticalAlignment="Center"
+                               FontSize="11"
+                               Opacity="0.65"
+                               Text="" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Style panel (theme editor) -->
+        <ScrollViewer x:Name="StylePanel"
+                      Grid.Column="1"
+                      Padding="16,12,16,12"
+                      Visibility="Collapsed">
+            <StackPanel Spacing="6">
+
+                <!-- Theme preset selector -->
+                <TextBlock FontSize="13"
+                           FontWeight="SemiBold"
+                           Text="UI Theme" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="ThemePresetCombo"
+                              Grid.Column="0"
+                              HorizontalAlignment="Stretch"
+                              SelectionChanged="_ThemePresetChanged" />
+                    <Button x:Name="AddThemeBtn"
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Content="+ New"
+                            Click="_AddThemeClicked"
+                            ToolTipService.ToolTip="Copy current theme as a new custom theme" />
+                    <Button x:Name="DeleteThemeBtn"
+                            Grid.Column="2"
+                            Margin="4,0,0,0"
+                            Content="Delete"
+                            IsEnabled="False"
+                            Click="_DeleteThemeClicked" />
+                </Grid>
+
+                <!-- Color editor — shown only for custom themes -->
+                <StackPanel x:Name="ColorEditorPanel"
+                            Margin="0,6,0,0"
+                            Visibility="Collapsed"
+                            Spacing="3">
+
+                    <!-- Theme name -->
+                    <TextBlock FontSize="11"
+                               Opacity="0.65"
+                               Text="Theme Name" />
+                    <TextBox x:Name="ThemeNameBox"
+                             PlaceholderText="My Custom Theme" />
+
+                    <!-- Light/Dark mode for WinRT controls -->
+                    <TextBlock FontSize="11"
+                               Opacity="0.65"
+                               Margin="0,6,0,0"
+                               Text="Base Mode (affects system buttons, scrollbars, etc.)" />
+                    <ComboBox x:Name="BaseModeCombo"
+                              HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Dark Mode" Tag="dark" />
+                        <ComboBoxItem Content="Light Mode" Tag="light" />
+                    </ComboBox>
+
+                    <!-- Color rows -->
+                    <TextBlock FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,2"
+                               Text="Colors  (#RRGGBB)" />
+
+                    <!-- Sidebar Body -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Sidebar Body" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorSidebarBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="SidebarBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchSidebarBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Sidebar Header -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Sidebar Header" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorSidebarHeaderBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="SidebarHeaderBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchSidebarHeaderBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Sidebar Text -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Sidebar Text" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorSidebarText" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="SidebarText" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchSidebarText" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Sidebar Text Muted -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Sidebar Text Muted" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorSidebarTextMuted" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="SidebarTextMuted" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchSidebarTextMuted" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Tab Bar -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Tab Bar" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorTabBarBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="TabBarBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchTabBarBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Dialog Background -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Dialog Background" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorDialogBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="DialogBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchDialogBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Dialog Nav -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Dialog Nav" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorDialogNavBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="DialogNavBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchDialogNavBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                    </Grid>
+
+                    <!-- Terminal Scheme -->
+                    <TextBlock FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,2"
+                               Text="Terminal Color Scheme" />
+                    <ComboBox x:Name="SchemeCombo"
+                              HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Default" Tag="" />
+                        <ComboBoxItem Content="CTux Dark" Tag="CTux Dark" />
+                        <ComboBoxItem Content="CTux Light" Tag="CTux Light" />
+                        <ComboBoxItem Content="Campbell" Tag="Campbell" />
+                        <ComboBoxItem Content="One Half Dark" Tag="One Half Dark" />
+                        <ComboBoxItem Content="One Half Light" Tag="One Half Light" />
+                        <ComboBoxItem Content="Solarized Dark" Tag="Solarized Dark" />
+                        <ComboBoxItem Content="Solarized Light" Tag="Solarized Light" />
+                        <ComboBoxItem Content="Tango Dark" Tag="Tango Dark" />
+                        <ComboBoxItem Content="Tango Light" Tag="Tango Light" />
+                    </ComboBox>
+
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Plugins panel -->
+        <ScrollViewer x:Name="PluginsPanel"
+                      Grid.Column="1"
+                      Padding="16,12,16,12"
+                      Visibility="Collapsed">
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="13"
+                           FontWeight="SemiBold"
+                           Text="Built-in Plugins" />
+
+                <Border Background="{ThemeResource SystemControlBackgroundAltHighBrush}"
+                        CornerRadius="6"
+                        Padding="10,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="Git Integration" />
+                            <TextBlock FontSize="11" Opacity="0.65"
+                                       Text="Show git branch and status on project cards" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="GitPluginToggle"
+                                      Grid.Column="1"
+                                      Margin="8,0,0,0"
+                                      IsOn="False" />
+                    </Grid>
+                </Border>
+
+                <Border Background="{ThemeResource SystemControlBackgroundAltHighBrush}"
+                        CornerRadius="6"
+                        Padding="10,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="Port Monitor" />
+                            <TextBlock FontSize="11" Opacity="0.65"
+                                       Text="Show real-time status for registered ports" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="PortPluginToggle"
+                                      Grid.Column="1"
+                                      Margin="8,0,0,0"
+                                      IsOn="False" />
+                    </Grid>
+                </Border>
+
+                <TextBlock FontSize="13"
+                           FontWeight="SemiBold"
+                           Margin="0,10,0,0"
+                           Text="Community Plugins" />
+                <TextBlock FontSize="11"
+                           Opacity="0.65"
+                           Text="Folder with plugin dirs containing ctux-plugin.json"
+                           TextWrapping="Wrap" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="PluginsFolderBox"
+                             Grid.Column="0"
+                             FontSize="11"
+                             PlaceholderText="Plugins folder path..." />
+                    <Button x:Name="BrowsePluginsBtn"
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Click="_BrowsePluginsFolderClicked"
+                            Content="..." />
+                </Grid>
+                <ListView x:Name="PluginList"
+                          MaxHeight="100"
+                          SelectionMode="None" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ContentDialog>

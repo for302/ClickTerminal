@@ -1,0 +1,16 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass AddProjectDialog : Windows.UI.Xaml.Controls.ContentDialog
+    {
+        AddProjectDialog();
+
+        String ProjectName  { get; };
+        String FolderPath   { get; };
+        String ProjectType  { get; };   // "web" | "app" | "ai-workflow"
+        String DefaultAITool{ get; };   // "claude" | "codex" | "gemini" | ""
+        String ColorScheme  { get; };   // "" | "CTux Dark" | "CTux Light" | ...
+    }
+}

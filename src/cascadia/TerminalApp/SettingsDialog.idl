@@ -1,0 +1,17 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass SettingsDialog : Windows.UI.Xaml.Controls.ContentDialog
+    {
+        SettingsDialog();
+
+        String  ProjectsConfigPath  { get; };
+        String  Theme               { get; };   // "dark" | "light"
+        String  SelectedThemeName   { get; };
+        String  PluginsFolder       { get; };
+        Boolean GitPluginEnabled    { get; };
+        Boolean PortPluginEnabled   { get; };
+    }
+}
