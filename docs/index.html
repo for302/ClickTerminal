@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickTerminal Dev Docs</title>
+<style>
+:root {
+  --bg:        #12121e;
+  --bg2:       #1a1a2a;
+  --bg3:       #222235;
+  --bg4:       #2a2a3e;
+  --sidebar:   #0f0f1c;
+  --border:    #2e2e48;
+  --text:      #cdd6f4;
+  --muted:     #7c7f93;
+  --accent:    #89b4fa;
+  --accent2:   #cba6f7;
+  --green:     #a6e3a1;
+  --yellow:    #f9e2af;
+  --red:       #f38ba8;
+  --teal:      #94e2d5;
+  --orange:    #fab387;
+  --code-bg:   #0d0d1a;
+  --code-text: #cdd6f4;
+  --radius:    6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ── SIDEBAR ─────────────────────────────────── */
+#sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  overflow-y: auto;
+  padding: 0 0 32px;
+  z-index: 100;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.sidebar-header {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--sidebar);
+  z-index: 1;
+}
+.sidebar-header h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+.sidebar-header p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.nav-section {
+  padding: 14px 0 4px;
+}
+.nav-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0 18px 6px;
+}
+.nav-item {
+  display: block;
+  padding: 6px 18px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+  line-height: 1.4;
+}
+.nav-item:hover {
+  color: var(--text);
+  background: rgba(137,180,250,0.06);
+  border-left-color: var(--accent);
+}
+.nav-item.active {
+  color: var(--accent);
+  background: rgba(137,180,250,0.1);
+  border-left-color: var(--accent);
+}
+.nav-item.h3 { padding-left: 32px; font-size: 12px; }
+.nav-item.h4 { padding-left: 46px; font-size: 11px; }
+
+#search-box {
+  margin: 12px 12px 0;
+  padding: 7px 10px;
+  width: calc(100% - 24px);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+#search-box::placeholder { color: var(--muted); }
+#search-box:focus { border-color: var(--accent); }
+
+/* ── MAIN CONTENT ────────────────────────────── */
+#main {
+  margin-left: 260px;
+  flex: 1;
+  padding: 0 48px 80px;
+  max-width: 980px;
+}
+
+.page-section {
+  padding-top: 48px;
+  border-top: 1px solid var(--border);
+  margin-top: 0;
+}
+.page-section:first-child { border-top: none; }
+
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(137,180,250,0.1);
+  border: 1px solid rgba(137,180,250,0.25);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-bottom: 20px;
+}
+
+/* ── TYPOGRAPHY ──────────────────────────────── */
+h1 { font-size: 26px; font-weight: 700; color: var(--text); margin: 0 0 8px; line-height: 1.3; }
+h2 { font-size: 19px; font-weight: 600; color: var(--accent); margin: 36px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 15px; font-weight: 600; color: var(--teal); margin: 24px 0 10px; }
+h4 { font-size: 13px; font-weight: 600; color: var(--accent2); margin: 18px 0 8px; }
+p { margin: 0 0 12px; }
+strong { color: var(--yellow); font-weight: 600; }
+em { color: var(--orange); font-style: italic; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+/* ── INLINE CODE ─────────────────────────────── */
+code {
+  font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  background: var(--bg4);
+  color: var(--teal);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+}
+
+/* ── CODE BLOCKS ─────────────────────────────── */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
+  margin: 12px 0 16px;
+  overflow: hidden;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border);
+}
+.code-lang {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.copy-btn {
+  font-size: 10px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--accent); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+pre code {
+  display: block;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--code-text);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Code syntax coloring */
+.kw  { color: #cba6f7; }  /* keywords */
+.st  { color: #a6e3a1; }  /* strings */
+.cm  { color: #585b70; font-style: italic; } /* comments */
+.nm  { color: #89b4fa; }  /* function names */
+.tp  { color: #f9e2af; }  /* types */
+.op  { color: #94e2d5; }  /* operators / special */
+
+/* ── TABLES ──────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin: 12px 0 16px; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  background: var(--bg3);
+  color: var(--accent);
+  font-weight: 600;
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(46,46,72,0.6);
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+td code { font-size: 11.5px; }
+
+/* ── BLOCKQUOTES ─────────────────────────────── */
+blockquote {
+  margin: 12px 0 16px;
+  padding: 10px 16px;
+  border-left: 3px solid var(--accent);
+  background: rgba(137,180,250,0.06);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--text);
+}
+blockquote strong { color: var(--accent); }
+
+/* ── LISTS ───────────────────────────────────── */
+ul, ol {
+  margin: 8px 0 12px;
+  padding-left: 24px;
+}
+li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+li > ul, li > ol { margin: 4px 0; }
+
+/* ── SPECIAL BOXES ───────────────────────────── */
+.warn-box {
+  background: rgba(243,139,168,0.08);
+  border: 1px solid rgba(243,139,168,0.3);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.warn-box::before { content: '⚠ '; color: var(--red); font-weight: bold; }
+
+.tip-box {
+  background: rgba(166,227,161,0.07);
+  border: 1px solid rgba(166,227,161,0.25);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+/* ── BUG CARDS ───────────────────────────────── */
+.bug-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 20px 0;
+  overflow: hidden;
+}
+.bug-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.bug-id {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--red);
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+}
+.bug-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.bug-body { padding: 14px 16px; }
+.bug-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+.bug-label:first-child { margin-top: 0; }
+
+/* ── FLOW DIAGRAM ────────────────────────────── */
+.flow-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-x: auto;
+  color: #cdd6f4;
+  white-space: pre;
+  margin: 10px 0 16px;
+}
+
+/* ── TOP BAR ─────────────────────────────────── */
+#topbar {
+  position: fixed;
+  top: 0; left: 260px; right: 0;
+  height: 46px;
+  background: rgba(18,18,30,0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 48px;
+  z-index: 50;
+  gap: 16px;
+}
+#topbar .breadcrumb {
+  font-size: 12px;
+  color: var(--muted);
+}
+#topbar .breadcrumb span { color: var(--accent); }
+.topbar-tags {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.tag {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.tag-cpp { background: rgba(137,180,250,0.12); color: var(--accent); border: 1px solid rgba(137,180,250,0.2); }
+.tag-msix { background: rgba(203,166,247,0.12); color: var(--accent2); border: 1px solid rgba(203,166,247,0.2); }
+.tag-winui { background: rgba(148,226,213,0.12); color: var(--teal); border: 1px solid rgba(148,226,213,0.2); }
+
+#content-area { padding-top: 46px; }
+
+/* ── THEME COLOR SWATCHES ────────────────────── */
+.color-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.swatch-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+/* ── SCROLLBAR ───────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── PRINT ───────────────────────────────────── */
+@media print {
+  #sidebar, #topbar { display: none; }
+  #main { margin-left: 0; }
+  #content-area { padding-top: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <h1>ClickTerminal</h1>
+    <p>개발 문서 · Dev Docs</p>
+  </div>
+  <input type="text" id="search-box" placeholder="🔍  섹션 검색..." oninput="filterNav(this.value)">
+
+  <div class="nav-section">
+    <div class="nav-section-title">Overview</div>
+    <a class="nav-item" href="#overview">프로젝트 개요</a>
+    <a class="nav-item h3" href="#quick-ref">빠른 참조</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">01 · 아키텍처</div>
+    <a class="nav-item" href="#arch-overview">레이어 구조</a>
+    <a class="nav-item h3" href="#dir-root">전체 루트</a>
+    <a class="nav-item h3" href="#dir-clickterminal">src/ClickTerminal/</a>
+    <a class="nav-item h3" href="#dir-terminalapp">src/cascadia/TerminalApp/</a>
+    <a class="nav-item h3" href="#dir-msix">_msix_extract/</a>
+    <a class="nav-item h3" href="#pkg-info">패키지 정보</a>
+    <a class="nav-item h3" href="#winrt-classes">WinRT 클래스 등록</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">02 · 데이터 모델</div>
+    <a class="nav-item" href="#ctuxtheme">CTuxTheme</a>
+    <a class="nav-item h3" href="#builtin-themes">빌트인 테마 5종</a>
+    <a class="nav-item" href="#ctuxsettings">CTuxSettings</a>
+    <a class="nav-item h3" href="#settings-schema">ctux-settings.json</a>
+    <a class="nav-item" href="#project-model">Project 구조체</a>
+    <a class="nav-item h3" href="#project-enums">열거형</a>
+    <a class="nav-item h3" href="#project-json">clickterminal.json</a>
+    <a class="nav-item" href="#project-manager">ProjectManager</a>
+    <a class="nav-item" href="#ai-tool-manager">AIToolManager</a>
+    <a class="nav-item h3" href="#context-usage">ContextUsage</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">03 · UI 컴포넌트</div>
+    <a class="nav-item" href="#project-sidebar">ProjectSidebar</a>
+    <a class="nav-item h3" href="#sidebar-events">WinRT 이벤트</a>
+    <a class="nav-item h3" href="#sidebar-methods">메서드 / 멤버</a>
+    <a class="nav-item" href="#tab-row-control">TabRowControl</a>
+    <a class="nav-item h3" href="#apply-theme">ApplyTheme()</a>
+    <a class="nav-item" href="#add-project-dialog">AddProjectDialog</a>
+    <a class="nav-item h3" href="#focus-fix">포커스 / 영문 입력</a>
+    <a class="nav-item" href="#context-meter">ContextMeter</a>
+    <a class="nav-item" href="#settings-dialog">SettingsDialog</a>
+    <a class="nav-item" href="#terminal-page">TerminalPage 통합</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">04 · 빌드 &amp; 배포</div>
+    <a class="nav-item" href="#build-overview">전체 흐름</a>
+    <a class="nav-item h3" href="#tool-paths">도구 경로</a>
+    <a class="nav-item h3" href="#step1-msbuild">[1/5] MSBuild</a>
+    <a class="nav-item h3" href="#step2-dll">[2/5] DLL 복사</a>
+    <a class="nav-item h3" href="#step3-pri">[3/5] resources.pri</a>
+    <a class="nav-item h3" href="#step4-sign">[4/5] 서명 정리</a>
+    <a class="nav-item h3" href="#step5-install">[5/5] 설치</a>
+    <a class="nav-item h3" href="#manifest-mgmt">AppxManifest 관리</a>
+    <a class="nav-item h3" href="#install-errors">설치 실패 진단</a>
+    <a class="nav-item h3" href="#checklist">수정 후 체크리스트</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">05 · 알려진 버그</div>
+    <a class="nav-item" href="#bug01">BUG-01 탭 배경색</a>
+    <a class="nav-item" href="#bug02">BUG-02 영문 입력 차단</a>
+    <a class="nav-item" href="#bug03">BUG-03 MSB4019</a>
+    <a class="nav-item" href="#bug04">BUG-04 resources.pri XBF</a>
+    <a class="nav-item" href="#bug05">BUG-05 AppxManifest 누락</a>
+    <a class="nav-item" href="#bug06">BUG-06 signtool /p7</a>
+    <a class="nav-item" href="#bug07">BUG-07 빌드 없이 수정</a>
+    <a class="nav-item" href="#bug08">BUG-08 .bat 창 닫힘</a>
+    <a class="nav-item" href="#bug09">BUG-09 Developer Mode</a>
+    <a class="nav-item h3" href="#diag-logs">진단 로그 위치</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">06 · 기능 흐름</div>
+    <a class="nav-item" href="#flow-startup">1. 앱 시작</a>
+    <a class="nav-item" href="#flow-add">2. 프로젝트 추가</a>
+    <a class="nav-item" href="#flow-edit">3. 프로젝트 편집</a>
+    <a class="nav-item" href="#flow-terminal">4. 터미널 열기</a>
+    <a class="nav-item" href="#flow-ai-start">5. AI 도구 실행</a>
+    <a class="nav-item" href="#flow-ai-stop">6. AI 도구 중지</a>
+    <a class="nav-item" href="#flow-theme">7. 테마 변경</a>
+    <a class="nav-item" href="#flow-pri">8. resources.pri 빌드</a>
+    <a class="nav-item" href="#flow-msix">9. MSIX 재패키징</a>
+    <a class="nav-item" href="#flow-debug">10. 디버그 로그</a>
+  </div>
+</nav>
+
+<!-- ═══ TOP BAR ═══════════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="breadcrumb">ClickTerminal / <span>Dev Docs</span></div>
+  <div class="topbar-tags">
+    <span class="tag tag-cpp">C++/WinRT</span>
+    <span class="tag tag-msix">MSIX</span>
+    <span class="tag tag-winui">WinUI 2.x</span>
+  </div>
+</div>
+
+<!-- ═══ MAIN CONTENT ══════════════════════════════════════════ -->
+<main id="main">
+<div id="content-area">
+
+<!-- ──────────────────────────────── OVERVIEW ── -->
+<section class="page-section" id="overview">
+<div class="section-badge">Overview</div>
+<h1>ClickTerminal 개발 문서</h1>
+<p>Microsoft Windows Terminal 오픈소스(<code>microsoft/terminal</code>)를 포크해 멀티 AI 도구 통합, 프로젝트 관리, 커스텀 테마를 추가한 개발자 터미널입니다.</p>
+
+<table class=""><thead><tr><th>추가 기능</th><th>설명</th></tr></thead><tbody>
+<tr><td><strong>프로젝트 사이드바</strong></td><td>개발 프로젝트를 폴더 단위로 관리하고 원클릭으로 터미널 세션을 여는 250px 패널</td></tr>
+<tr><td><strong>멀티 AI 도구 통합</strong></td><td>Claude Code, Codex CLI, Gemini를 프로젝트별로 설정하고 PTY 세션으로 실행</td></tr>
+<tr><td><strong>AI 컨텍스트 미터</strong></td><td>AI 도구의 토큰 사용량을 실시간 10-세그먼트 UI로 표시</td></tr>
+<tr><td><strong>커스텀 테마 시스템</strong></td><td>탭바·사이드바·다이얼로그 전체에 적용되는 테마 엔진 (빌트인 5종 + 사용자 정의)</td></tr>
+<tr><td><strong>설정 다이얼로그</strong></td><td>테마 선택, 플러그인 토글을 위한 전용 ContentDialog</td></tr>
+</tbody></table>
+
+<h2 id="quick-ref">빠른 참조</h2>
+<table><thead><tr><th>항목</th><th>경로 / 값</th></tr></thead><tbody>
+<tr><td>빌드 + 설치</td><td><code>_build_and_deploy.bat</code></td></tr>
+<tr><td>설치만</td><td><code>_install_run.bat</code></td></tr>
+<tr><td>디버그 로그</td><td><code>%LOCALAPPDATA%\ClickTerminal\ctux-debug.log</code></td></tr>
+<tr><td>크래시 로그</td><td><code>%LOCALAPPDATA%\ClickTerminal\ctux-crash.log</code></td></tr>
+<tr><td>설정 파일</td><td><code>%LOCALAPPDATA%\ClickTerminal\ctux-settings.json</code></td></tr>
+<tr><td>프로젝트 목록</td><td><code>%LOCALAPPDATA%\ClickTerminal\clickterminal.json</code></td></tr>
+<tr><td>PackageFamilyName</td><td><code>WindowsTerminalDev_xpqk32cx38ema</code></td></tr>
+<tr><td>인증서 비밀번호</td><td><code>ctuxdev</code></td></tr>
+</tbody></table>
+</section>
+
+<!-- ──────────────────────── 01 ARCHITECTURE ── -->
+<section class="page-section" id="arch-overview">
+<div class="section-badge">01 · 아키텍처</div>
+<h1>전체 아키텍처 및 디렉토리 구조</h1>
+
+<h2>레이어 구조</h2>
+<div class="flow-block">┌─────────────────────────────────────────────────────┐
+│                   MSIX 패키지                        │
+│  CascadiaPackage (WindowsTerminalDev)                │
+├──────────────────┬──────────────────────────────────┤
+│   TerminalApp.dll│  TerminalApp.winmd               │
+├──────────────────┴──────────────────────────────────┤
+│  WinUI 레이어 (C++/WinRT + XAML)                    │
+│  ┌────────────┐  ┌──────────────┐  ┌─────────────┐  │
+│  │TerminalPage│  │ProjectSidebar│  │TabRowControl│  │
+│  └────────────┘  └──────────────┘  └─────────────┘  │
+│  ┌─────────────────┐  ┌──────────────────────────┐  │
+│  │ AddProjectDialog│  │SettingsDialog/AISetupPage│  │
+│  └─────────────────┘  └──────────────────────────┘  │
+├─────────────────────────────────────────────────────┤
+│  비즈니스 로직 레이어  (src/ClickTerminal/)          │
+│  ┌──────────────┐  ┌───────────────┐               │
+│  │ProjectManager│  │AIToolManager  │               │
+│  └──────────────┘  └───────────────┘               │
+│  ┌──────────────────────────────────┐               │
+│  │CTuxSettings / CTuxTheme          │               │
+│  └──────────────────────────────────┘               │
+├─────────────────────────────────────────────────────┤
+│  데이터 레이어 (JSON 파일, %LOCALAPPDATA%)           │
+│  clickterminal.json   ctux-settings.json            │
+└─────────────────────────────────────────────────────┘</div>
+
+<h2 id="dir-root">디렉토리 구조 — 전체 루트</h2>
+<pre><div class="code-header"><span class="code-lang">directory tree</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>D:\Dev\20_PC\ClickTerminal\
+├── src/
+│   ├── cascadia/
+│   │   ├── TerminalApp/          ← WinUI 컴포넌트 (메인 작업 폴더)
+│   │   ├── CascadiaPackage/      ← MSIX 패키지 정의 (AppxManifest.xml)
+│   │   └── TerminalControl/      ← 업스트림 터미널 컨트롤
+│   └── ClickTerminal/            ← 비즈니스 로직 헤더/구현
+├── bin/
+│   └── x64/Release/TerminalApp/  ← 빌드 결과물 (DLL, winmd, pri)
+├── _msix_extract/
+│   └── pkg/                      ← MSIX 재패키징 작업 폴더
+├── docs/                         ← 개발 문서
+├── _build_and_deploy.bat         ← 빌드+설치 통합 스크립트
+├── _build_and_deploy.ps1
+├── _install_run.bat              ← 설치 전용 스크립트
+├── _install_run.ps1
+├── ClickTerminalDev.pfx          ← 서명용 인증서 (pw: ctuxdev)
+└── ClickTerminalDev.cer          ← 공개 인증서</code></pre>
+
+<h2 id="dir-clickterminal">src/ClickTerminal/ — 비즈니스 로직</h2>
+<pre><div class="code-header"><span class="code-lang">directory</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>src/ClickTerminal/
+├── CTuxTheme.h                 ← 테마 색상 구조체 및 빌트인 테마 5종
+├── CTuxSettings.h              ← 전역 설정 구조체 (Load/Save/GetActiveTheme)
+├── ProjectManager.h            ← 프로젝트 CRUD 및 JSON 직렬화
+├── AIToolManager.h             ← AI 도구 감지, 실행 명령, 세션 관리
+├── ContextMeter.xaml           ← 컨텍스트 미터 UI (10 세그먼트)
+├── ContextMeter.h              ← 컨텍스트 미터 WinRT 컴포넌트
+├── AIToolManager.cpp
+└── clickterminal.schema.json   ← clickterminal.json 스키마</code></pre>
+
+<h2 id="dir-terminalapp">src/cascadia/TerminalApp/ — WinUI 컴포넌트</h2>
+<h3>ClickTerminal 추가 파일 (우리가 작성한 코드)</h3>
+<pre><div class="code-header"><span class="code-lang">directory</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>src/cascadia/TerminalApp/
+├── ProjectSidebar.h/.cpp/.xaml/.idl   ← 사이드바 컴포넌트
+├── AddProjectDialog.h/.cpp/.xaml/.idl ← 프로젝트 추가/편집 다이얼로그
+├── SettingsDialog.h/.cpp/.xaml/.idl   ← 설정 다이얼로그
+├── AISetupPage.h/.cpp/.xaml/.idl      ← AI 도구 설정 페이지
+├── CTuxSettingsManager.cpp            ← 테마/설정 관리 (JSON 파싱)
+├── TabRowControl.h/.cpp/.xaml/.idl    ← 탭 행 컨트롤 (ApplyTheme)
+└── TerminalPage.cpp/.h/.xaml          ← 메인 페이지 (사이드바 통합, CrashLog)</code></pre>
+
+<h2 id="dir-msix">_msix_extract/ — 재패키징 작업 영역</h2>
+<pre><div class="code-header"><span class="code-lang">directory</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>_msix_extract/
+├── pkg/
+│   ├── AppxManifest.xml       ← 실제 배포 매니페스트 (수동 편집)
+│   ├── resources.pri          ← 리소스 인덱스 (makepri로 재생성)
+│   ├── TerminalApp/
+│   │   ├── TerminalApp.dll    ← 빌드 후 복사된 DLL
+│   │   └── TerminalApp.winmd
+│   └── ...
+└── CascadiaPackage_new.msix   ← makeappx 결과물</code></pre>
+
+<h2 id="pkg-info">패키지 정보</h2>
+<table><thead><tr><th>항목</th><th>값</th></tr></thead><tbody>
+<tr><td>PackageFamilyName</td><td><code>WindowsTerminalDev_xpqk32cx38ema</code></td></tr>
+<tr><td>Package Name</td><td><code>WindowsTerminalDev</code></td></tr>
+<tr><td>Publisher</td><td><code>CN=ClickTerminalDev</code></td></tr>
+<tr><td>PFX 파일</td><td><code>ClickTerminalDev.pfx</code></td></tr>
+<tr><td>PFX 비밀번호</td><td><code>ctuxdev</code></td></tr>
+<tr><td>CER 파일</td><td><code>ClickTerminalDev.cer</code></td></tr>
+</tbody></table>
+
+<h2 id="winrt-classes">등록된 WinRT 활성화 클래스</h2>
+<p><code>_msix_extract/pkg/AppxManifest.xml</code>의 <code>&lt;InProcessServer&gt;</code> 블록에 등록된 타입들. 누락 시 <code>winrt::terminate()</code> → <code>0xc0000409 FAST_FAIL</code> 크래시 발생.</p>
+<pre><div class="code-header"><span class="code-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&lt;ActivatableClass ActivatableClassId="TerminalApp.ContextMeter"     ThreadingModel="both" /&gt;
+&lt;ActivatableClass ActivatableClassId="TerminalApp.SettingsDialog"   ThreadingModel="both" /&gt;
+&lt;ActivatableClass ActivatableClassId="TerminalApp.ProjectSidebar"   ThreadingModel="both" /&gt;
+&lt;ActivatableClass ActivatableClassId="TerminalApp.AddProjectDialog" ThreadingModel="both" /&gt;
+&lt;ActivatableClass ActivatableClassId="TerminalApp.AISetupPage"      ThreadingModel="both" /&gt;
+&lt;ActivatableClass ActivatableClassId="TerminalApp.TabRowControl"    ThreadingModel="both" /&gt;</code></pre>
+</section>
+
+<!-- ────────────────────────── 02 DATA MODELS ── -->
+<section class="page-section" id="ctuxtheme">
+<div class="section-badge">02 · 데이터 모델</div>
+<h1>데이터 모델</h1>
+<p>모든 데이터 모델은 <code>src/ClickTerminal/</code> 하위 헤더 파일에 정의되며, JSON 직렬화/역직렬화로 <code>%LOCALAPPDATA%\ClickTerminal\</code>에 저장됩니다.</p>
+
+<h2>CTuxTheme — 테마 색상 정의</h2>
+<p><strong>파일</strong>: <code>src/ClickTerminal/CTuxTheme.h</code></p>
+
+<h3>CTuxThemeColors 구조체</h3>
+<table><thead><tr><th>필드</th><th>기본값 (CTux Dark)</th><th>설명</th></tr></thead><tbody>
+<tr><td><code>SidebarBg</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#252535"></span><code>#252535</code></span></td><td>사이드바 배경</td></tr>
+<tr><td><code>SidebarHeaderBg</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#1A1A2A"></span><code>#1A1A2A</code></span></td><td>사이드바 헤더 배경</td></tr>
+<tr><td><code>SidebarText</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#CDD6F4"></span><code>#CDD6F4</code></span></td><td>기본 텍스트</td></tr>
+<tr><td><code>SidebarTextMuted</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#7C7F93"></span><code>#7C7F93</code></span></td><td>보조 텍스트</td></tr>
+<tr><td><code>TabBarBg</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#1A1A2A"></span><code>#1A1A2A</code></span></td><td>탭바 배경</td></tr>
+<tr><td><code>DialogBg</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#2A2A3A"></span><code>#2A2A3A</code></span></td><td>다이얼로그 배경</td></tr>
+<tr><td><code>DialogNavBg</code></td><td><span class="color-swatch"><span class="swatch-dot" style="background:#1F1F2F"></span><code>#1F1F2F</code></span></td><td>다이얼로그 네비게이션 배경</td></tr>
+<tr><td><code>TerminalScheme</code></td><td><code>CTux Dark</code></td><td>터미널 색상 스킴 이름</td></tr>
+</tbody></table>
+
+<h3>CTuxTheme 구조체</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>struct CTuxTheme {
+    std::wstring     Name;          // 테마 이름 ("CTux Dark" 등)
+    bool             IsBuiltIn;     // true = 빌트인, false = 사용자 정의
+    bool             IsLightMode;   // true = 라이트 모드 (ElementTheme::Light)
+    CTuxThemeColors  Colors;        // 색상 팔레트
+};</code></pre>
+
+<h3 id="builtin-themes">빌트인 테마 5종 — <code>GetBuiltInThemes()</code></h3>
+<table><thead><tr><th>이름</th><th>모드</th><th>SidebarBg</th><th>특징</th></tr></thead><tbody>
+<tr><td><code>CTux Dark</code></td><td>Dark</td><td><span class="color-swatch"><span class="swatch-dot" style="background:#252535"></span><code>#252535</code></span></td><td>보라-다크 (기본)</td></tr>
+<tr><td><code>CTux Light</code></td><td>Light</td><td><span class="color-swatch"><span class="swatch-dot" style="background:#F0F0FA;border-color:#ccc"></span><code>#F0F0FA</code></span></td><td>밝은 회청색</td></tr>
+<tr><td><code>Mocha</code></td><td>Dark</td><td><span class="color-swatch"><span class="swatch-dot" style="background:#1E1E2E"></span><code>#1E1E2E</code></span></td><td>따뜻한 갈색</td></tr>
+<tr><td><code>Ocean</code></td><td>Dark</td><td><span class="color-swatch"><span class="swatch-dot" style="background:#0D1117"></span><code>#0D1117</code></span></td><td>딥블루</td></tr>
+<tr><td><code>Forest</code></td><td>Dark</td><td><span class="color-swatch"><span class="swatch-dot" style="background:#1A2015"></span><code>#1A2015</code></span></td><td>다크그린</td></tr>
+</tbody></table>
+
+<h3>관련 함수 (<code>CTuxSettingsManager.cpp</code>)</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>std::vector&lt;CTuxTheme&gt; GetBuiltInThemes();
+CTuxThemeColors ParseThemeColors(const nlohmann::json&amp; j);
+nlohmann::json  SerializeThemeColors(const CTuxThemeColors&amp; c);
+void            FillMissingColors(CTuxThemeColors&amp; colors, bool isLight);</code></pre>
+
+<h2 id="ctuxsettings">CTuxSettings — 전역 설정</h2>
+<p><strong>파일</strong>: <code>src/ClickTerminal/CTuxSettings.h</code><br>
+<strong>저장 경로</strong>: <code>%USERPROFILE%\AppData\Local\ClickTerminal\ctux-settings.json</code></p>
+<blockquote><strong>주의</strong>: <code>%LOCALAPPDATA%</code>는 MSIX 가상화로 리다이렉트되므로 반드시 <code>%USERPROFILE%\AppData\Local</code>을 직접 구성해야 합니다.</blockquote>
+
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>struct CTuxSettings {
+    std::wstring             ProjectsConfigPath;   // clickterminal.json 경로
+    std::wstring             SelectedThemeName;    // 현재 테마명 (기본: "CTux Dark")
+    std::wstring             PluginsFolder;        // 플러그인 폴더 (옵션)
+    bool                     GitPluginEnabled;
+    bool                     PortPluginEnabled;
+    std::vector&lt;CTuxTheme&gt;   CustomThemes;
+
+    CTuxTheme        GetActiveTheme() const;
+    std::wstring     ThemeString() const;           // "dark" or "light"
+    static CTuxSettings Load();
+    void             Save() const;
+    static std::wstring GetDefaultDir();
+};</code></pre>
+
+<h3 id="settings-schema">ctux-settings.json 스키마 (v3)</h3>
+<pre><div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>{
+  "schemaVersion": 3,
+  "selectedThemeName": "CTux Dark",
+  "projectsConfigPath": "C:\\Users\\user\\AppData\\Local\\ClickTerminal\\clickterminal.json",
+  "pluginsFolder": "",
+  "gitPluginEnabled": false,
+  "portPluginEnabled": false,
+  "customThemes": []
+}</code></pre>
+
+<table><thead><tr><th>버전</th><th>추가 필드</th></tr></thead><tbody>
+<tr><td>v1</td><td><code>theme</code>, <code>projectsConfigPath</code></td></tr>
+<tr><td>v2</td><td><code>selectedThemeName</code>, <code>customThemes</code>, <code>pluginsFolder</code></td></tr>
+<tr><td>v3</td><td><code>schemaVersion</code>, 색상 폴백 로직 추가</td></tr>
+</tbody></table>
+
+<h2 id="project-model">Project — 프로젝트 구조체</h2>
+<p><strong>파일</strong>: <code>src/ClickTerminal/ProjectManager.h</code> / <code>src/cascadia/TerminalApp/ProjectManager.cpp</code></p>
+
+<h3 id="project-enums">열거형</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>enum class ProjectType : uint8_t {
+    Web        = 0,    // 웹 프로젝트
+    App        = 1,    // 데스크탑/네이티브 앱
+    AIWorkflow = 2     // AI 워크플로우
+};
+
+enum class ClaudePermissionMode : uint8_t {
+    Default=0, AcceptEdits=1, BypassPermissions=2, Plan=3, Auto=4
+};
+
+enum class CodexApprovalMode : uint8_t {
+    Suggest=0, AutoEdit=1, FullAuto=2
+};</code></pre>
+
+<h3>Project 구조체 (전체 필드)</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>struct Project {
+    std::wstring                            Id;               // "proj-{uuid4}"
+    std::wstring                            Name;
+    ProjectType                             Type;
+    std::wstring                            FolderPath;
+    std::wstring                            ColorScheme;      // 터미널 색상 스킴
+    std::wstring                            StartupCommand;
+    std::wstring                            Icon;             // 아이콘 경로 (옵션)
+    std::wstring                            TerminalProfileGuid;
+    std::vector&lt;std::wstring&gt;               Tags;
+    std::wstring                            CreatedAt;        // ISO8601
+    std::wstring                            LastOpenedAt;     // ISO8601
+    std::vector&lt;int32_t&gt;                    Ports;
+    std::vector&lt;ProjectUrl&gt;                 Urls;             // {Label, Url, OpenOnStart}
+    ProjectAIConfig                         AIConfig;         // Claude/Codex/Gemini 설정
+    std::vector&lt;std::pair&lt;wstring,wstring&gt;&gt; Env;             // 환경변수
+};</code></pre>
+
+<h3 id="project-json">clickterminal.json 스키마 (v1)</h3>
+<pre><div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>{
+  "$version": 1,
+  "projects": [{
+    "id": "proj-550e8400-e29b-41d4-a716-446655440000",
+    "name": "MyWebApp",
+    "type": "web",
+    "folderPath": "C:\\Dev\\MyWebApp",
+    "colorScheme": "CTux Dark",
+    "startupCommand": "cmd.exe",
+    "tags": ["react", "typescript"],
+    "createdAt": "2026-01-01T00:00:00Z",
+    "lastOpenedAt": "2026-05-01T12:00:00Z",
+    "ports": [3000, 3001],
+    "urls": [{ "label": "App", "url": "http://localhost:3000", "openOnStart": true }],
+    "aiTool": {
+      "defaultTool": "claude",
+      "claude": {
+        "enabled": true,
+        "permissionMode": "default",
+        "model": "claude-sonnet-4-6",
+        "dangerouslySkipPermissions": false,
+        "mcpConfigPath": "",
+        "appendSystemPrompt": "",
+        "addDirs": []
+      },
+      "codex": { "enabled": false, "approvalMode": "suggest", "model": "gpt-5.4" },
+      "gemini": { "enabled": false, "model": "gemini-2.5-pro" }
+    },
+    "env": { "NODE_ENV": "development" }
+  }]
+}</code></pre>
+
+<h2 id="project-manager">ProjectManager — 프로젝트 CRUD</h2>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>class ProjectManager {
+public:
+    explicit ProjectManager(std::wstring configPath = L"");
+
+    // 로드/저장
+    ProjectResult&lt;bool&gt;     LoadProjects();
+    ProjectResult&lt;bool&gt;     SaveProjects();       // .tmp → MoveFileExW (원자적)
+
+    // CRUD
+    ProjectResult&lt;Project&gt;  AddProject(Project project);       // UUID 생성, 중복 검사
+    ProjectResult&lt;Project&gt;  UpdateProject(const Project&amp; p);
+    ProjectResult&lt;bool&gt;     RemoveProject(const std::wstring&amp; id);
+
+    // 조회
+    std::optional&lt;Project&gt;  GetProjectById(const std::wstring&amp; id) const;
+    std::optional&lt;Project&gt;  GetProjectByPath(const std::wstring&amp; path) const;
+    std::vector&lt;Project&gt;    GetAllProjects() const;
+    std::vector&lt;Project&gt;    GetProjectsByType(ProjectType type) const;
+
+    ProjectResult&lt;bool&gt;     TouchProject(const std::wstring&amp; id); // lastOpenedAt 갱신
+
+    // 자동 감지: .git / package.json / *.sln 기준
+    std::vector&lt;Project&gt;    AutoDetectProjects(
+                                const std::vector&lt;std::wstring&gt;&amp; searchPaths,
+                                int maxDepth = 3);
+
+    std::function&lt;void()&gt;   OnProjectsChanged;   // 저장 완료 콜백
+};</code></pre>
+
+<h2 id="ai-tool-manager">AIToolManager — AI 도구 관리</h2>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>class AIToolManager {
+public:
+    void DetectInstalled();
+    bool RefreshTool(AITool tool);
+
+    std::optional&lt;AIToolConfig&gt;  GetToolConfig(AITool tool) const;
+    bool                         IsInstalled(AITool tool) const;
+
+    LaunchCommand GetLaunchCommand(const Project&amp; project, AITool tool,
+                                   bool skipEnabled = false);
+
+    // PTY 세션 관리
+    void RegisterSession(const std::wstring&amp; sessionId, AITool tool, HANDLE ptyHandle);
+    void UnregisterSession(const std::wstring&amp; sessionId);
+    bool SendExitCommand(const std::wstring&amp; sessionId); // stdin에 "/exit\n"
+
+    // PTY stdout 라인 파싱 → 토큰 사용량 추출
+    std::optional&lt;ContextUsage&gt; ParseContextUsageLine(AITool tool, const std::wstring&amp; line);
+
+    std::function&lt;void()&gt; OnToolDetectionChanged;
+};</code></pre>
+
+<h3 id="context-usage">ContextUsage 구조체</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>struct ContextUsage {
+    uint32_t UsedTokens;
+    uint32_t TotalTokens;
+    float    FillRatio() const;        // 0.0 ~ 1.0
+    uint8_t  FilledSegments() const;   // 0 ~ 10  (ContextMeter 렌더링용)
+};</code></pre>
+</section>
+
+<!-- ──────────────────────── 03 UI COMPONENTS ── -->
+<section class="page-section" id="project-sidebar">
+<div class="section-badge">03 · UI 컴포넌트</div>
+<h1>UI 컴포넌트</h1>
+
+<h2>ProjectSidebar — 프로젝트 사이드바</h2>
+<p><strong>파일</strong>: <code>src/cascadia/TerminalApp/ProjectSidebar.h/.cpp/.xaml</code></p>
+
+<h3>레이아웃 구조</h3>
+<div class="flow-block">ProjectSidebar (UserControl, 너비 250px)
+└── Grid (3행)
+    ├── Row 0 (높이 36px): 헤더
+    │   ├── TextBlock "PROJECTS"
+    │   ├── Button AISetupButton  (Glyph: EDE3 ⚙)
+    │   └── Button AddProjectButton (Glyph: E710 +)
+    ├── Row 1 (남은 공간): 스크롤 뷰
+    │   └── ScrollViewer
+    │       └── StackPanel ProjectListPanel (Spacing: 2px)
+    │           └── [동적 생성: 프로젝트 카드들]
+    └── Row 2 (높이 40px): 푸터
+        └── Button SettingsButton</div>
+
+<h3 id="sidebar-events">WinRT 이벤트 (IDL 정의)</h3>
+<pre><div class="code-header"><span class="code-lang">idl</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>event TypedEventHandler&lt;ProjectSidebar, OpenTerminalEventArgs&gt; OpenTerminalRequested;
+event TypedEventHandler&lt;ProjectSidebar, StartAIEventArgs&gt;     StartAIRequested;
+event TypedEventHandler&lt;ProjectSidebar, StopAIEventArgs&gt;      StopAIRequested;
+event TypedEventHandler&lt;ProjectSidebar, OpenUrlEventArgs&gt;     OpenUrlRequested;
+event TypedEventHandler&lt;ProjectSidebar, CTuxThemeChangedArgs&gt; CTuxThemeChanged;</code></pre>
+
+<h3 id="sidebar-methods">공개 메서드</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>void Refresh();                                                // 프로젝트 목록 새로고침
+void RefreshTheme();                                           // 테마 색상 새로고침
+void SetSessionActive(const hstring&amp; projectId, bool active); // AI 세션 상태
+void UpdateContextUsage(const hstring&amp; projectId,
+                        uint32_t used, uint32_t total);        // 컨텍스트 미터
+ProjectManager&amp; ProjectManagerRef();</code></pre>
+
+<h3>비공개 멤버 변수</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>std::unique_ptr&lt;ProjectManager&gt;                  _projectManager;
+std::unordered_map&lt;std::wstring, bool&gt;           _activeSessions;
+std::unordered_map&lt;std::wstring, {used,total}&gt;   _contextUsage;
+std::unordered_map&lt;std::wstring, ContextMeter&gt;   _meterControls;
+CTuxTheme                                         _activeTheme;
+
+// 비동기 다이얼로그 작업 (중복 열기 방지)
+IAsyncOperation&lt;ContentDialogResult&gt; _pendingSettingsOp;
+IAsyncOperation&lt;ContentDialogResult&gt; _pendingAddProjectOp;
+IAsyncOperation&lt;ContentDialogResult&gt; _pendingAISetupOp;
+IAsyncOperation&lt;ContentDialogResult&gt; _pendingEditOp;</code></pre>
+
+<h3>헬퍼 함수 (cpp 최상단)</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>void DbgLog(const std::wstring&amp; msg);          // ctux-debug.log 기록
+DependencyObject FindDescendantByName(DependencyObject root, hstring name);
+void ApplyDarkSmoke(ContentDialog&amp; dialog);    // 배경 어둡게 (#99000000)
+Windows::UI::Color ParseHexColor(const std::wstring&amp; hex); // #RRGGBB / #AARRGGBB
+Windows::UI::Color CardColor(Windows::UI::Color base, bool isLight);
+    // Dark: +18  Light: -25 밝기 조정</code></pre>
+
+<h2 id="tab-row-control">TabRowControl — 탭 행 컨트롤</h2>
+<p><strong>파일</strong>: <code>src/cascadia/TerminalApp/TabRowControl.h/.cpp/.xaml</code></p>
+
+<h3>레이아웃 구조</h3>
+<div class="flow-block">ContentPresenter (루트)
+└── mux:TabView (VerticalAlignment=Bottom)
+    ├── TabStripHeader:
+    │   └── StackPanel (Horizontal)
+    │       ├── Border CTuxHeaderBorder (Width=250)
+    │       │   └── TextBlock "CTux" (FontSize=14, Bold)
+    │       └── FontIcon ElevationShield (Glyph: EA18, Visibility=Collapsed)
+    └── TabStripFooter:
+        └── mux:SplitButton NewTabButton
+            └── FontIcon &#xE710; (+)</div>
+
+<h3 id="apply-theme">ApplyTheme() 세부 동작</h3>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>void TabRowControl::ApplyTheme(Color tabBarBg, Color textColor) {
+    // 1. 밝기 계산
+    float lum = 0.2126f*R + 0.7152f*G + 0.0722f*B;
+    bool isLight = lum &gt; 128.0f;
+
+    // 2. 선택/호버 색상 (Dark: +25/+12, Light: -25/-12)
+    Color selected = ShiftBrightness(tabBarBg, isLight ? -25 : +25);
+    Color hovered  = ShiftBrightness(tabBarBg, isLight ? -12 : +12);
+
+    // 3. 기본 배경
+    TabView().Background(SolidColorBrush(tabBarBg));
+    CTuxHeaderBorder().Background(SolidColorBrush(tabBarBg));
+
+    // 4. ⚠ 핵심: Resources 딕셔너리에 직접 오버라이드
+    //    TabContainerGrid가 ThemeResource를 사용하므로
+    //    Background 프로퍼티만으로는 우측 영역이 변경되지 않음
+    TabView().Resources().Insert(
+        winrt::box_value(hstring(L"TabViewBackground")), bg);
+    TabView().Resources().Insert(
+        hstring(L"TabViewItemHeaderBackgroundSelected"), selected);
+    TabView().Resources().Insert(
+        hstring(L"TabViewItemHeaderBackgroundPointerOver"), hovered);
+}</code></pre>
+
+<h2 id="add-project-dialog">AddProjectDialog — 프로젝트 추가/편집</h2>
+<p><strong>파일</strong>: <code>src/cascadia/TerminalApp/AddProjectDialog.h/.cpp/.xaml</code></p>
+
+<h3>XAML 구조</h3>
+<div class="flow-block">ContentDialog (MinWidth=420)
+└── StackPanel (Spacing=12)
+    ├── TextBox ProjectNameBox
+    ├── Grid (2열)
+    │   ├── TextBox FolderPathBox
+    │   └── Button BrowseButton "..."
+    ├── ComboBox ProjectTypeBox
+    │   ├── [0] Web (Browser)        → "web"
+    │   ├── [1] App                  → "app"
+    │   └── [2] Cowork (AI Workflow) → "ai-workflow"
+    ├── ComboBox AIToolBox
+    │   ├── [0] Claude Code (Anthropic) → "claude"
+    │   ├── [1] Codex CLI (OpenAI)      → "codex"
+    │   ├── [2] Gemini (Google)         → "gemini"
+    │   └── [3] None                    → ""
+    └── ComboBox ColorSchemeBox (10개 스킴)</div>
+
+<h3 id="focus-fix">포커스 설정 — 영문 입력 보장</h3>
+<blockquote>Xaml Islands 환경에서 <code>Loaded</code> 이벤트는 애니메이션 완료 전에 발생합니다. 이 시점에 <code>FocusState::Programmatic</code>을 사용하면 Win32 HWND 포커스가 터미널에 남아 ASCII 입력이 차단됩니다.</blockquote>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>// ✅ 올바른 패턴 (생성자에서 등록)
+Opened([this](IInspectable const&amp;, ContentDialogOpenedEventArgs const&amp;) {
+    ProjectNameBox().Focus(winrt::Windows::UI::Xaml::FocusState::Keyboard);
+});
+
+// ❌ 절대 금지 — ASCII 입력 차단
+Loaded([this](...) {
+    ProjectNameBox().Focus(FocusState::Programmatic);
+});</code></pre>
+
+<h2 id="context-meter">ContextMeter — AI 컨텍스트 미터</h2>
+<p><strong>파일</strong>: <code>src/ClickTerminal/ContextMeter.xaml/.h</code></p>
+<div class="flow-block">ContextMeter (UserControl)
+└── StackPanel (Horizontal, Spacing=2)
+    └── [10개 Rectangle]
+        ├── 채워진: #89B4FA (CTux Blue)
+        └── 비어있는: #363653 (다크)</div>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>uint8_t FilledSegments() const {
+    if (TotalTokens == 0) return 0;
+    return (uint8_t)((float)UsedTokens / TotalTokens * 10.0f + 0.5f);
+}</code></pre>
+
+<h2 id="settings-dialog">SettingsDialog — 설정 다이얼로그</h2>
+<div class="flow-block">ContentDialog
+└── Grid (2열: 네비게이션 | 컨텐츠)
+    ├── StackPanel 네비게이션 (Width=160, DialogNavBg)
+    │   ├── Button "테마"
+    │   ├── Button "AI 설정"
+    │   └── Button "플러그인"
+    └── ScrollViewer 컨텐츠
+        ├── [테마] RadioButton 목록
+        ├── [AI 설정] → AISetupPage 컴포넌트
+        └── [플러그인] ToggleSwitch × 2</div>
+
+<table><thead><tr><th>디버그 로그</th><th>의미</th></tr></thead><tbody>
+<tr><td><code>[Settings] clicked</code></td><td>버튼 이벤트 정상 수신</td></tr>
+<tr><td><code>[Settings] XamlRoot null</code></td><td>XamlRoot 미설정 → 다이얼로그 표시 불가</td></tr>
+<tr><td><code>[Settings] dialog ctor threw</code></td><td>AppxManifest InProcessServer 누락</td></tr>
+<tr><td><code>[Settings] showing dialog...</code></td><td>정상 경로</td></tr>
+</tbody></table>
+
+<h2 id="terminal-page">TerminalPage — 메인 페이지 통합</h2>
+<pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>// 크래시 로그 헬퍼 (ctux-crash.log)
+void TerminalPage::_CrashLog(const std::wstring&amp; msg);
+
+// 구독하는 ProjectSidebar 이벤트:
+//   OpenTerminalRequested → 새 탭/창으로 터미널 열기
+//   StartAIRequested      → AI 도구 프로세스 시작
+//   StopAIRequested       → AI 도구 프로세스 종료
+//   CTuxThemeChanged      → TabRowControl::ApplyTheme() 호출</code></pre>
+</section>
+
+<!-- ────────────────────────── 04 BUILD DEPLOY ── -->
+<section class="page-section" id="build-overview">
+<div class="section-badge">04 · 빌드 &amp; 배포</div>
+<h1>빌드 및 배포 프로세스</h1>
+
+<h2>전체 흐름 개요</h2>
+<div class="flow-block">소스 수정
+    ↓
+_build_and_deploy.bat
+    ↓
+[1/5] MSBuild 컴파일
+    → TerminalApp.dll / .winmd / .pri 생성
+    ↓
+[2/5] DLL 복사
+    → _msix_extract/pkg/TerminalApp/
+    ↓
+[3/5] resources.pri 재생성
+    → makepri new → pkg/resources.pri
+    ↓
+[4/5] 서명 파일 정리
+    → AppxSignature.p7x, AppxBlockMap.xml 삭제
+    ↓
+[5/5] 인증서 신뢰 등록 + 설치
+    → makeappx pack → signtool sign → Add-AppxPackage</div>
+
+<h2>빌드 스크립트 파일</h2>
+<table><thead><tr><th>파일</th><th>역할</th></tr></thead><tbody>
+<tr><td><code>_build_and_deploy.bat</code></td><td>CMD 진입점 (<code>-NoExit</code>로 PS 창 유지)</td></tr>
+<tr><td><code>_build_and_deploy.ps1</code></td><td>실제 빌드 + 배포 로직 (5단계)</td></tr>
+<tr><td><code>_install_run.bat</code></td><td>설치 전용 진입점</td></tr>
+<tr><td><code>_install_run.ps1</code></td><td>인증서 등록 + 설치 로직</td></tr>
+</tbody></table>
+
+<pre><div class="code-header"><span class="code-lang">bat</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>@echo off
+powershell -NoExit -ExecutionPolicy Bypass -NoProfile -File "%~dp0script.ps1"</code></pre>
+
+<pre><div class="code-header"><span class="code-lang">powershell — ps1 종료 패턴</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Write-Host "Press any key to close..."
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Stop-Process -Id $PID</code></pre>
+
+<h2 id="tool-paths">도구 경로</h2>
+<table><thead><tr><th>도구</th><th>경로</th></tr></thead><tbody>
+<tr><td>MSBuild</td><td><code>C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe</code></td></tr>
+<tr><td>makepri</td><td><code>C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe</code></td></tr>
+<tr><td>makeappx</td><td><code>C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe</code></td></tr>
+<tr><td>signtool</td><td><code>C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe</code></td></tr>
+</tbody></table>
+
+<h2 id="step1-msbuild">[1/5] MSBuild 컴파일</h2>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+$vcxproj = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\TerminalAppLib.vcxproj"
+
+&amp; $msbuild $vcxproj `
+    /p:Configuration=Release `
+    /p:Platform=x64 `
+    /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" `   # ← 필수! MSB4019 방지
+    /t:Build /m /nologo /verbosity:minimal</code></pre>
+
+<blockquote><strong>/p:SolutionDir 필수 이유</strong>: <code>.vcxproj</code>만 빌드하면 <code>$(SolutionDir)</code>이 vcxproj 폴더로 설정됩니다. <code>CollectWildcardResources.targets</code>를 잘못된 경로에서 찾아 MSB4019 에러가 발생합니다.</blockquote>
+
+<h3>Pre-flight 체크 (빌드 전 자동 실행)</h3>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$dllTime = (Get-Item "bin\x64\Release\TerminalApp\TerminalApp.dll").LastWriteTime
+$newerSources = Get-ChildItem "src\cascadia\TerminalApp\*.cpp","src\ClickTerminal\*.h" |
+    Where-Object { $_.LastWriteTime -gt $dllTime }
+
+if ($newerSources) {
+    Write-Host "[PRE-FLIGHT] Sources newer than DLL" -ForegroundColor Yellow
+} else {
+    Write-Host "[PRE-FLIGHT] All sources up to date" -ForegroundColor Green
+}</code></pre>
+
+<h2 id="step2-dll">[2/5] DLL 복사</h2>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$src = "D:\Dev\20_PC\ClickTerminal\bin\x64\Release\TerminalApp\"
+$dst = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\TerminalApp\"
+Copy-Item "$src\TerminalApp.dll"   $dst -Force
+Copy-Item "$src\TerminalApp.winmd" $dst -Force</code></pre>
+
+<h2 id="step3-pri">[3/5] resources.pri 재생성</h2>
+<blockquote><strong>왜 필수인가</strong>: <code>resources.pri</code>는 모든 XAML의 XBF(컴파일된 바이너리)를 Base64로 내장합니다. DLL만 교체하면 C++ 코드는 새 버전이지만 XBF는 구 버전 → <code>InitializeComponent()</code> 실패 → <strong>FAST_FAIL 크래시</strong>.</blockquote>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Set-Location "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+
+&amp; "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe" `
+    new `
+    /pr "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
+    /cf "obj\x64\Release\priconfig.xml" `
+    /o `
+    /of "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\resources.pri"</code></pre>
+
+<h2 id="step4-sign">[4/5] 서명 파일 정리</h2>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Remove-Item "_msix_extract\pkg\AppxSignature.p7x" -ErrorAction SilentlyContinue
+Remove-Item "_msix_extract\pkg\AppxBlockMap.xml"  -ErrorAction SilentlyContinue</code></pre>
+
+<h2 id="step5-install">[5/5] 인증서 신뢰 등록 + 설치</h2>
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code># 인증서 등록
+Import-Certificate -FilePath "ClickTerminalDev.cer" `
+    -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+Import-Certificate -FilePath "ClickTerminalDev.cer" `
+    -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" | Out-Null
+
+# makeappx 패킹
+Set-Location "_msix_extract"
+&amp; makeappx.exe pack /d pkg /p CascadiaPackage_new.msix /nv /o
+
+# signtool 서명 (⚠ /p7 계열 플래그 절대 금지)
+&amp; signtool.exe sign /fd SHA256 /f "..\ClickTerminalDev.pfx" /p ctuxdev `
+    CascadiaPackage_new.msix
+
+# 설치
+Add-AppxPackage -Path "CascadiaPackage_new.msix" -ForceApplicationShutdown</code></pre>
+
+<h2 id="manifest-mgmt">AppxManifest.xml 관리</h2>
+<p>새 WinRT 컴포넌트 추가 시 반드시 <code>&lt;InProcessServer&gt;</code> 블록에 추가:</p>
+<pre><div class="code-header"><span class="code-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&lt;ActivatableClass ActivatableClassId="TerminalApp.MyNewControl"
+                  ThreadingModel="both" /&gt;</code></pre>
+
+<h2 id="install-errors">설치 실패 진단</h2>
+<table><thead><tr><th>오류 코드</th><th>원인</th><th>해결</th></tr></thead><tbody>
+<tr><td><code>0x80073CFF</code> Unsigned</td><td>인증서가 시스템 신뢰 저장소에 없음</td><td><code>Import-Certificate</code> Root + TrustedPeople 양쪽 실행</td></tr>
+<tr><td><code>0x800B0100</code> 서명 없음</td><td>signtool에 <code>/p7</code> 플래그 사용</td><td>플래그 없이 기본 서명 명령 재실행</td></tr>
+<tr><td><code>0xc0000409</code> FAST_FAIL</td><td>XBF 불일치 또는 AppxManifest 누락</td><td>ctux-crash.log 확인 후 해당 조치</td></tr>
+</tbody></table>
+
+<h2 id="checklist">소스 수정 후 체크리스트</h2>
+<pre><div class="code-header"><span class="code-lang">checklist</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>□ 소스 파일 수정 완료
+□ _build_and_deploy.bat 실행
+□ Pre-flight에서 수정된 파일 목록 확인 (Yellow = 이번 빌드에 포함됨)
+□ MSBuild 성공 (에러 없음)
+□ 설치 성공 메시지 확인
+□ 앱 실행 후 변경사항 테스트
+□ ctux-crash.log에 새 에러 없음 확인</code></pre>
+</section>
+
+<!-- ────────────────────────── 05 KNOWN ISSUES ── -->
+<section class="page-section">
+<div class="section-badge">05 · 알려진 버그</div>
+<h1>알려진 버그 패턴 및 해결책</h1>
+
+<div class="bug-card" id="bug01">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-01</span>
+    <span class="bug-title">탭 스트립 우측 배경색 미적용</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p><code>ApplyTheme()</code>으로 탭바 배경색을 설정해도 탭 우측 영역(New Tab 버튼 이후 빈 공간)이 기본 색상으로 남음.</p>
+    <div class="bug-label">원인</div>
+    <p>WinUI <code>TabView</code>의 탭 스트립 배경은 <code>TabView.Background</code>가 아닌 내부 <code>TabContainerGrid</code>의 <code>{ThemeResource TabViewBackground}</code>로 제어됩니다. <code>Background="Transparent"</code>를 설정해도 ThemeResource가 덮어씁니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>// TabRowControl.cpp - ApplyTheme()
+TabView().Resources().Insert(
+    winrt::box_value(winrt::hstring(L"TabViewBackground")), bg);</code></pre>
+  </div>
+</div>
+
+<div class="bug-card" id="bug02">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-02</span>
+    <span class="bug-title">ContentDialog TextBox 영문 입력 차단</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p>ContentDialog 안의 TextBox에서 한국어(IME)는 입력되는데, 영문(ASCII) 및 숫자는 전혀 입력되지 않음.</p>
+    <div class="bug-label">원인</div>
+    <p>Xaml Islands(Win32 호스팅)에서 <code>Loaded</code>는 다이얼로그 애니메이션 완료 <strong>전</strong>에 발생합니다. <code>FocusState::Programmatic</code>은 XAML 논리 포커스만 이동하고 Win32 HWND 포커스는 터미널에 남아 <code>WM_CHAR</code>가 TextBox에 도달하지 못합니다. 한국어 IME는 TSF 경로로 전달되므로 무관하게 동작합니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">cpp</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>// ✅ 생성자에서 등록
+Opened([this](IInspectable const&amp;, ContentDialogOpenedEventArgs const&amp;) {
+    ProjectNameBox().Focus(winrt::Windows::UI::Xaml::FocusState::Keyboard);
+});
+
+// ❌ 절대 사용 금지
+Loaded([this](...) { ProjectNameBox().Focus(FocusState::Programmatic); });</code></pre>
+    <p><strong>원칙</strong>: 새로운 ContentDialog를 만들 때마다 <code>Opened + FocusState::Keyboard</code> 패턴 적용.</p>
+  </div>
+</div>
+
+<div class="bug-card" id="bug03">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-03</span>
+    <span class="bug-title">MSB4019 — CollectWildcardResources.targets 없음</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <pre><div class="code-header"><span class="code-lang">error</span></div><code>error MSB4019: 가져온 프로젝트 "...\TerminalApp\build\rules\CollectWildcardResources.targets"을(를) 찾을 수 없습니다.</code></pre>
+    <div class="bug-label">원인</div>
+    <p><code>.sln</code> 없이 <code>.vcxproj</code>만 빌드하면 <code>$(SolutionDir)</code>이 vcxproj 폴더로 설정되어 targets 파일을 잘못된 경로에서 찾습니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&amp; $msbuild $vcxproj /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" ...</code></pre>
+  </div>
+</div>
+
+<div class="bug-card" id="bug04">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-04</span>
+    <span class="bug-title">resources.pri XBF 불일치 → FAST_FAIL 크래시</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p>앱 실행 직후 충돌. <code>ctux-crash.log</code>에 <code>[TabRow] ctor start</code>는 있지만 <code>InitializeComponent OK</code>는 없음. 이벤트 뷰어: <code>0xc0000409</code>, <code>ucrtbase.dll</code>.</p>
+    <div class="bug-label">원인</div>
+    <p><code>resources.pri</code>는 모든 XAML의 XBF를 Base64로 내장합니다. DLL만 교체하면 C++ 코드(새 버전) vs XBF(이전 버전) 불일치 → <code>Application::LoadComponent()</code> 실패 → noexcept 경계에서 예외 전파 → FAST_FAIL.</p>
+    <div class="bug-label">해결</div>
+    <p>빌드 후 반드시 <code>makepri</code>로 <code>resources.pri</code> 재생성. XAML 수정 없어도 DLL 교체 시 항상 실행.</p>
+  </div>
+</div>
+
+<div class="bug-card" id="bug05">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-05</span>
+    <span class="bug-title">AppxManifest InProcessServer 누락 → FAST_FAIL</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p>새 WinRT 컴포넌트 추가 후 앱 시작 즉시 충돌. <code>ctux-crash.log</code>에 아무것도 없음.</p>
+    <div class="bug-label">원인</div>
+    <p><code>AppxManifest.xml</code>의 <code>&lt;InProcessServer&gt;</code>에 등록되지 않은 타입을 활성화하면 WinRT 런타임이 <code>winrt::terminate()</code>를 호출합니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">xml</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&lt;ActivatableClass ActivatableClassId="TerminalApp.MyNewControl" ThreadingModel="both" /&gt;</code></pre>
+  </div>
+</div>
+
+<div class="bug-card" id="bug06">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-06</span>
+    <span class="bug-title">signtool /p7 플래그 → 서명 없는 MSIX</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p><code>Add-AppxPackage</code>가 <code>0x800B0100 "패키지의 서명이 유효하지 않습니다"</code> 반환. 설치가 조용히 실패하여 이전 버전이 유지됨.</p>
+    <div class="bug-label">원인</div>
+    <p><code>/p7</code>, <code>/p7co</code>, <code>/p7ce</code> 플래그는 서명을 별도 파일로 분리합니다. MSIX 내부에 <code>AppxSignature.p7x</code>가 생성되지 않아 패키지 서명 검증 실패.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&amp; signtool sign /fd SHA256 /f "..\ClickTerminalDev.pfx" /p ctuxdev CascadiaPackage_new.msix
+# /p7, /p7co, /p7ce 절대 사용 금지!</code></pre>
+  </div>
+</div>
+
+<div class="bug-card" id="bug07">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-07</span>
+    <span class="bug-title">설치 후 변경사항 없음 — 빌드 없이 소스만 수정</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p>소스 파일을 수정했지만 앱 실행 시 변경사항이 없음.</p>
+    <div class="bug-label">진단</div>
+    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>(Get-Item "src\cascadia\TerminalApp\ProjectSidebar.cpp").LastWriteTime
+(Get-Item "bin\x64\Release\TerminalApp\TerminalApp.dll").LastWriteTime
+# 소스 > DLL 이면 리빌드 필요</code></pre>
+    <div class="bug-label">해결</div>
+    <p><code>_build_and_deploy.bat</code> 실행. 코드 수정 → 빌드 → 설치 → 테스트 순서를 반드시 지킬 것.</p>
+  </div>
+</div>
+
+<div class="bug-card" id="bug08">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-08</span>
+    <span class="bug-title">.bat 창이 키 입력 후 즉시 닫힘</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p>"Press any key to close..."에서 키를 누르면 창이 즉시 닫힘.</p>
+    <div class="bug-label">원인</div>
+    <p><code>-NoExit</code> 없이 <code>powershell -File script.ps1</code>을 호출하면 <code>ReadKey</code> 완료 시 PS 프로세스가 종료되고 CMD 창도 함께 닫힙니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">bat</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>powershell -NoExit -ExecutionPolicy Bypass -NoProfile -File "%~dp0script.ps1"</code></pre>
+  </div>
+</div>
+
+<div class="bug-card" id="bug09">
+  <div class="bug-card-header">
+    <span class="bug-id">BUG-09</span>
+    <span class="bug-title">Add-AppxPackage Developer Mode 오류 혼란</span>
+  </div>
+  <div class="bug-body">
+    <div class="bug-label">증상</div>
+    <p><code>Add-AppxPackage -Register</code> 시 <code>0x80073CFF</code> 에러. 인증서 문제처럼 보여 혼란스러움.</p>
+    <div class="bug-label">원인</div>
+    <p>Developer Mode OFF 상태에서 <code>-Register</code>(폴더 직접 등록)는 항상 실패합니다. 인증서 문제가 아닙니다.</p>
+    <div class="bug-label">해결</div>
+    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$devMode = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+    -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense -eq 1
+if ($devMode) { Add-AppxPackage -Register $manifest }
+else          { # makeappx → signtool → Add-AppxPackage MSIX 경로 }</code></pre>
+    <p>이 PC는 Developer Mode OFF → 항상 MSIX 경로 사용.</p>
+  </div>
+</div>
+
+<h2 id="diag-logs">빠른 진단 로그 위치</h2>
+<table><thead><tr><th>로그</th><th>경로</th><th>내용</th></tr></thead><tbody>
+<tr><td>디버그</td><td><code>%LOCALAPPDATA%\ClickTerminal\ctux-debug.log</code></td><td>버튼 클릭, 다이얼로그 상태, XamlRoot</td></tr>
+<tr><td>크래시</td><td><code>%LOCALAPPDATA%\ClickTerminal\ctux-crash.log</code></td><td>생성자 진입, InitializeComponent 성공 여부</td></tr>
+</tbody></table>
+
+<h3>크래시 로그 판독표</h3>
+<table><thead><tr><th>마지막 로그</th><th>의미</th><th>원인</th></tr></thead><tbody>
+<tr><td>아무것도 없음</td><td>앱 프로세스조차 시작 안 됨</td><td>AppxManifest 누락 (winrt::terminate)</td></tr>
+<tr><td><code>[TermPage] ctor start</code></td><td>TerminalPage 생성자 진입</td><td>TabRowControl 생성 중 문제</td></tr>
+<tr><td><code>[TabRow] ctor start</code></td><td>TabRowControl 생성자 진입</td><td>InitializeComponent 실패</td></tr>
+<tr><td><code>[TabRow] InitializeComponent OK</code></td><td>정상 시작</td><td>이후 런타임 에러</td></tr>
+</tbody></table>
+</section>
+
+<!-- ────────────────────────── 06 FEATURE FLOWS ── -->
+<section class="page-section">
+<div class="section-badge">06 · 기능 흐름</div>
+<h1>기능별 코드 흐름 상세</h1>
+
+<h2 id="flow-startup">1. 앱 시작 → 프로젝트 목록 표시</h2>
+<div class="flow-block">Windows Terminal 앱 실행
+  │
+  ▼
+TerminalPage::TerminalPage()                    [TerminalPage.cpp]
+  │  _CrashLog("[TermPage] ctor start")
+  │  InitializeComponent()
+  │
+  ▼
+TabRowControl::TabRowControl()                  [TabRowControl.cpp]
+  │  _CrashLog("[TabRow] ctor start")
+  │  InitializeComponent()
+  │  _CrashLog("[TabRow] InitializeComponent OK")
+  │
+  ▼
+ProjectSidebar::ProjectSidebar()                [ProjectSidebar.cpp]
+  │  InitializeComponent()
+  │
+  ├─ CTuxSettings::Load()                       [CTuxSettingsManager.cpp]
+  │    → ctux-settings.json 파싱 → CTuxSettings 반환
+  │
+  ├─ ProjectManager::LoadProjects()             [ProjectManager.cpp]
+  │    → clickterminal.json 파싱 → _projects 벡터
+  │
+  ├─ _ApplyTheme(settings.GetActiveTheme())
+  │    → RequestedTheme, SolidColorBrush 적용
+  │
+  └─ _BuildProjectList()
+       for (auto&amp; project : GetAllProjects())
+         _BuildProjectCard(project)
+           ├─ Border (CardColor 배경)
+           ├─ TextBlock (이름, 경로)
+           ├─ StackPanel (포트 Chip)
+           ├─ [AI 활성 시] ContextMeter
+           └─ StackPanel (액션 버튼)
+
+결과: 사이드바에 프로젝트 카드 표시</div>
+
+<h2 id="flow-add">2. 프로젝트 추가 흐름</h2>
+<div class="flow-block">AddProjectButton(+) 클릭
+  ↓
+ProjectSidebar::_AddProjectClicked()
+  DbgLog("[Sidebar] AddProject clicked")
+  _pendingAddProjectOp 중복 방지 체크
+  ↓
+AddProjectDialog 생성 + ShowAsync()
+  Opened → ProjectNameBox().Focus(FocusState::Keyboard)
+  ↓
+사용자 입력: 이름 / 경로 / 타입 / AI도구 / 색상스킴
+  FolderPathBox: BrowseButton → IFileOpenDialog (FOS_PICKFOLDERS)
+  ↓
+Primary 버튼 ("추가") 클릭
+  ↓
+ProjectManager::AddProject(project)
+  Id = "proj-" + GenerateUUID()
+  CreatedAt = ISO8601 현재 시각
+  _IsDuplicate(path) 검사
+  ↓
+ProjectManager::SaveProjects()
+  .tmp → MoveFileExW(원자적 교체)
+  OnProjectsChanged() 콜백
+  ↓
+ProjectSidebar::Refresh() → _BuildProjectList()</div>
+
+<h2 id="flow-edit">3. 프로젝트 편집 흐름</h2>
+<div class="flow-block">편집 버튼 / 컨텍스트 메뉴
+  ↓
+ProjectSidebar::_ShowEditDialog(projectId)
+  ↓
+AddProjectDialog 생성
+  SetInitialValues(name, path, type, aiTool, scheme)
+  Title = "프로젝트 편집" / PrimaryButtonText = "수정"
+  ↓
+사용자 수정 → "수정" 클릭
+  ↓
+ProjectManager::UpdateProject(updated)   // find_if → 교체
+  ↓
+SaveProjects() → Refresh()</div>
+
+<h2 id="flow-terminal">4. 터미널 열기 흐름</h2>
+<div class="flow-block">"터미널" 버튼 클릭
+  ↓
+ProjectSidebar: OpenTerminalRequested 이벤트 발생
+  EventArgs: { projectId, folderPath, colorScheme, terminalProfileGuid }
+  ↓
+TerminalPage: OpenTerminalRequested 핸들러
+  StartupDirectory = project.FolderPath
+  ColorScheme = project.ColorScheme
+  ↓
+새 터미널 탭 생성 (업스트림 코드)
+  ↓
+ProjectManager::TouchProject(projectId)
+  lastOpenedAt = 현재 시각 (최근 사용 정렬)</div>
+
+<h2 id="flow-ai-start">5. AI 도구 실행 흐름</h2>
+<div class="flow-block">"AI 시작" 버튼 클릭
+  ↓
+ProjectSidebar: StartAIRequested { projectId, aiTool }
+  ↓
+AIToolManager::GetLaunchCommand(project, tool)
+  Claude: claude --permission-mode {mode} --model {model} [--add-dir ...]
+  Codex:  codex --approval-mode {mode} --model {model}
+  Gemini: gemini --model {model}
+  ↓
+새 터미널 탭 생성 (WorkingDir = project.FolderPath)
+  PTY 핸들 획득
+  ↓
+AIToolManager::RegisterSession(sessionId, tool, ptyHandle)
+  ↓
+ProjectSidebar::SetSessionActive(projectId, true)
+  카드 UI: "AI 중지" 버튼 표시
+
+실행 중 (PTY stdout 모니터링):
+  AIToolManager::ParseContextUsageLine(tool, line)
+  ↓
+ProjectSidebar::UpdateContextUsage(projectId, used, total)
+  ContextMeter 세그먼트 갱신 (0~10)</div>
+
+<h2 id="flow-ai-stop">6. AI 도구 중지 흐름</h2>
+<div class="flow-block">"AI 중지" 버튼 클릭
+  ↓
+StopAIRequested 이벤트
+  ↓
+AIToolManager::SendExitCommand(sessionId)
+  PTY stdin에 "/exit\n" 전송 → 타임아웃 후 강제 종료
+  ↓
+AIToolManager::UnregisterSession(sessionId)
+  ↓
+ProjectSidebar::SetSessionActive(projectId, false)
+  카드 UI: "AI 시작" 버튼 복귀 / ContextMeter 숨김</div>
+
+<h2 id="flow-theme">7. 테마 변경 흐름</h2>
+<div class="flow-block">Settings 버튼 클릭
+  ↓
+ProjectSidebar::_SettingsClicked()
+  DbgLog("[Settings] clicked")
+  XamlRoot 확인 (null → 에러 로그 후 return)
+  ↓
+SettingsDialog::ShowAsync()
+  ↓
+사용자가 테마 RadioButton 선택
+  ↓
+CTuxSettings::Load() → SelectedThemeName 변경 → Save()
+  ctux-settings.json 갱신
+  ↓
+ProjectSidebar::RefreshTheme()
+  _activeTheme = settings.GetActiveTheme()
+  _ApplyTheme(_activeTheme)
+  ↓
+CTuxThemeChanged 이벤트 { tabBarBg, textColor }
+  ↓
+TerminalPage → TabRowControl::ApplyTheme(tabBarBg, textColor)
+  TabViewBackground 리소스 오버라이드 → 탭바 전체 갱신</div>
+
+<h2 id="flow-pri">8. resources.pri 빌드 흐름</h2>
+<div class="flow-block">MSBuild (TerminalAppLib.vcxproj)
+  각 .xaml → .xbf 컴파일
+  TerminalApp.pri 생성
+  TerminalApp.dll / .winmd 생성
+  ↓
+makepri new
+  priconfig.xml → pri.resfiles 목록 수집
+    TerminalApp.pri (bin/x64/Release/TerminalApp/)
+    TerminalCore.pri, TerminalControl.pri ... (업스트림)
+  모든 PRI 병합
+  각 XAML XBF를 Base64로 내장
+  ↓
+resources.pri → _msix_extract/pkg/resources.pri
+
+앱 실행 시:
+  Application::LoadComponent(uri)
+    → resources.pri에서 uri 해당 XBF 추출
+    → XBF 역직렬화 → XAML 트리 구성
+    → InitializeComponent() 완료</div>
+
+<h2 id="flow-msix">9. MSIX 재패키징 전체 흐름</h2>
+<div class="flow-block">[초기 1회] 기존 MSIX 압축 해제
+makeappx unpack /p WindowsTerminalDev.msix /d _msix_extract/pkg/
+
+[매 배포마다]
+1. MSBuild → DLL/winmd/pri 생성
+2. DLL/winmd 복사 → _msix_extract/pkg/TerminalApp/
+3. makepri → resources.pri 재생성
+4. AppxSignature.p7x, AppxBlockMap.xml 삭제
+5. makeappx pack → CascadiaPackage_new.msix
+6. signtool sign → AppxSignature.p7x 내장
+7. Import-Certificate → 시스템 신뢰 등록
+8. Add-AppxPackage → 설치</div>
+
+<h2 id="flow-debug">10. 디버그 로그 체계</h2>
+<pre><div class="code-header"><span class="code-lang">cpp — 앱 시작 체크포인트 (ctux-crash.log)</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>"[TermPage] ctor start"           → TerminalPage 생성자 진입
+"[TabRow] ctor start"             → TabRowControl 생성자 진입
+"[TabRow] InitializeComponent OK" → XAML 정상 초기화</code></pre>
+<pre><div class="code-header"><span class="code-lang">cpp — 다이얼로그/사이드바 체크포인트 (ctux-debug.log)</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>"[Settings] clicked"             → 설정 버튼 정상 수신
+"[Settings] XamlRoot null"       → XamlRoot 미설정
+"[Settings] dialog ctor threw"   → AppxManifest 등록 누락
+"[Settings] showing dialog..."   → 정상 경로
+"[Sidebar] AddProject clicked"   → 추가 버튼 정상 수신
+"[Sidebar] AddProject saved"     → 저장 완료</code></pre>
+</section>
+
+</div><!-- #content-area -->
+</main>
+
+<script>
+// ── Copy button ─────────────────────────────────
+function copyCode(btn) {
+  const code = btn.closest('pre').querySelector('code');
+  navigator.clipboard.writeText(code.textContent).then(() => {
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── Nav search filter ────────────────────────────
+function filterNav(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.style.display = (!q || el.textContent.toLowerCase().includes(q)) ? '' : 'none';
+  });
+}
+
+// ── Active nav highlight on scroll ──────────────
+const anchors = [...document.querySelectorAll('[id]')];
+const navItems = [...document.querySelectorAll('.nav-item')];
+
+function updateActiveNav() {
+  const scrollY = window.scrollY + 100;
+  let current = '';
+  for (const el of anchors) {
+    if (el.offsetTop <= scrollY) current = el.id;
+  }
+  navItems.forEach(a => {
+    const href = a.getAttribute('href');
+    a.classList.toggle('active', href === '#' + current);
+  });
+}
+
+window.addEventListener('scroll', updateActiveNav, { passive: true });
+updateActiveNav();
+</script>
+</body>
+</html>

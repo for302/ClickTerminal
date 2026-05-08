@@ -68,13 +68,29 @@
             <local:ProjectSidebar x:Name="Sidebar"
                                   Grid.Column="0" />
 
-            <Grid x:Name="TabContent"
-                  Grid.Column="1"
+            <!--  Content column: title strip (Row 0) stacked above terminal panes (Row 1)  -->
+            <Grid Grid.Column="1"
                   HorizontalAlignment="Stretch"
                   VerticalAlignment="Stretch">
-                <Grid.Background>
-                    <ImageBrush />
-                </Grid.Background>
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="PaneInfoStripRow" Height="0" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!--  Per-pane project title strip — occupies its own row, never overlaps terminals  -->
+                <Grid x:Name="PaneInfoStrip"
+                      Grid.Row="0"
+                      HorizontalAlignment="Stretch"
+                      Visibility="Collapsed" />
+
+                <Grid x:Name="TabContent"
+                      Grid.Row="1"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch">
+                    <Grid.Background>
+                        <ImageBrush />
+                    </Grid.Background>
+                </Grid>
             </Grid>
         </Grid>
 

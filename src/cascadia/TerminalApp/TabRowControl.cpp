@@ -48,19 +48,57 @@ namespace winrt::TerminalApp::implementation
     // Arguments:
     //  - <unused>
     //  - e: DragEventArgs which hold the items
-    void TabRowControl::ApplyTheme(winrt::Windows::UI::Color tabBarBg, winrt::Windows::UI::Color textColor)
+    void TabRowControl::ApplyTheme(winrt::Windows::UI::Color stripBg, winrt::Windows::UI::Color tabItemBg, winrt::Windows::UI::Color textColor)
     {
         try
         {
-            auto bg = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ tabBarBg };
-            auto fg = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ textColor };
-            // Set tab strip background (ContentPresenter itself)
-            Background(bg);
-            // Set CTux header border background and text
-            CTuxHeaderBorder().Background(bg);
+            // stripBg  → header (CTux label area), right empty footer, TabViewBackground
+            // tabItemBg → tab pill backgrounds (inactive/selected/hover/pressed)
+            // This separation creates visual distinction between the strip and the tab pills.
+            auto strip = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ stripBg };
+            auto fg    = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ textColor };
+            auto item  = winrt::Windows::UI::Xaml::Media::SolidColorBrush{ tabItemBg };
+
+            Background(strip);
+            CTuxHeaderBorder().Background(strip);
             CTuxHeaderText().Foreground(fg);
+            LayoutButtonIcon().Foreground(fg);
+            SidebarToggleIcon().Foreground(fg);
+
+            auto res = TabView().Resources();
+            res.Insert(winrt::box_value(winrt::hstring(L"TabViewBackground")), strip);
+
+            float lum = 0.2126f * tabItemBg.R + 0.7152f * tabItemBg.G + 0.0722f * tabItemBg.B;
+            bool isLight = lum > 127.5f;
+
+            auto makeShift = [&](int d) -> winrt::Windows::UI::Xaml::Media::SolidColorBrush {
+                winrt::Windows::UI::Color c{
+                    tabItemBg.A,
+                    static_cast<uint8_t>(std::clamp(static_cast<int>(tabItemBg.R) + d, 0, 255)),
+                    static_cast<uint8_t>(std::clamp(static_cast<int>(tabItemBg.G) + d, 0, 255)),
+                    static_cast<uint8_t>(std::clamp(static_cast<int>(tabItemBg.B) + d, 0, 255))
+                };
+                return winrt::Windows::UI::Xaml::Media::SolidColorBrush{ c };
+            };
+            int selDelta = isLight ? -25 : 25;
+            int hovDelta = isLight ? -12 : 12;
+
+            res.Insert(winrt::box_value(winrt::hstring(L"TabViewItemHeaderBackground")), item);
+            res.Insert(winrt::box_value(winrt::hstring(L"TabViewItemHeaderBackgroundSelected")), makeShift(selDelta));
+            res.Insert(winrt::box_value(winrt::hstring(L"TabViewItemHeaderBackgroundPointerOver")), makeShift(hovDelta));
+            res.Insert(winrt::box_value(winrt::hstring(L"TabViewItemHeaderBackgroundPressed")), makeShift(selDelta));
         }
         catch (...) {}
+    }
+
+    void TabRowControl::OnLayoutButtonClick(const IInspectable&, const winrt::Windows::UI::Xaml::RoutedEventArgs&)
+    {
+        LayoutButtonClicked.raise(*this, nullptr);
+    }
+
+    void TabRowControl::OnSidebarToggleClick(const IInspectable&, const winrt::Windows::UI::Xaml::RoutedEventArgs&)
+    {
+        SidebarToggleClicked.raise(*this, nullptr);
     }
 
     void TabRowControl::OnNewTabButtonDragOver(const IInspectable&, const winrt::Windows::UI::Xaml::DragEventArgs& e)

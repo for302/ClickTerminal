@@ -11,6 +11,8 @@
                DefaultButton="Primary"
                PrimaryButtonText="Save"
                Title="CTux Settings"
+               Opened="_DialogOpened"
+               Closed="_DialogClosed"
                mc:Ignorable="d">
 
     <ContentDialog.Resources>
@@ -26,12 +28,13 @@
                     <SolidColorBrush x:Key="ContentDialogSmokeBrush" Color="#99000000" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+            <!-- Initial cap removed; BackgroundElement sized directly via GetTemplateChild -->
+            <x:Double x:Key="ContentDialogMaxWidth">9999</x:Double>
         </ResourceDictionary>
     </ContentDialog.Resources>
 
     <Grid x:Name="ContentGrid"
-          Width="600"
-          Height="500">
+          Height="520">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="148" />
             <ColumnDefinition Width="*" />

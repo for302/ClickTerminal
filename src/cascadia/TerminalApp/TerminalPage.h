@@ -17,6 +17,8 @@
 #include "WindowsPackageManagerFactory.h"
 #include "ProjectSidebar.h"
 #include "AIToolManager.h"
+#include "LayoutManager.h"
+#include "LayoutPickerDialog.h"
 
 #define DECLARE_ACTION_HANDLER(action) void _Handle##action(const IInspectable& sender, const Microsoft::Terminal::Settings::Model::ActionEventArgs& args);
 
@@ -334,11 +336,46 @@ namespace winrt::TerminalApp::implementation
         void _SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
         void _SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& projectId);
         void _SidebarCTuxThemeChanged(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& themeName);
+        void _SidebarOpenUrlRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& url);
+        void _SidebarApplyLayoutRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& layoutId);
+        void _SidebarEditLayoutRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& layoutId);
+
+        // ClickTerminal: layout manager
+        void _TabRowLayoutButtonClicked(const winrt::Windows::Foundation::IInspectable& sender,
+                                        const winrt::Windows::Foundation::IInspectable& args);
+        void _TabRowSidebarToggleClicked(const winrt::Windows::Foundation::IInspectable& sender,
+                                         const winrt::Windows::Foundation::IInspectable& args);
+        bool _sidebarVisible{ true };
+        safe_void_coroutine _ShowLayoutDialog();
+        void _ApplyLayoutJson(const winrt::hstring& layoutJson);
+        std::shared_ptr<Pane> _BuildPaneTreeFromLayout(uint32_t rows, uint32_t cols,
+            const std::vector<ClickTerminal::LayoutSlot>& slots,
+            const std::vector<ClickTerminal::Project>& projects);
+
+        void _BuildPaneInfoOverlay(uint32_t rows, uint32_t cols,
+            const std::vector<ClickTerminal::LayoutSlot>& slots,
+            const std::vector<ClickTerminal::Project>& projects,
+            winrt::TerminalApp::Tab overlayTab);
+        void _ClearPaneInfoOverlay();
+        void _RepositionPaneInfoCards();
+
+        std::unique_ptr<ClickTerminal::LayoutManager>   _layoutManager;
+
+        // Per-pane overlay state
+        winrt::weak_ref<winrt::TerminalApp::Tab>        _layoutOverlayTab;
+        uint32_t _overlayRows{ 0 };
+        uint32_t _overlayCols{ 0 };
+        std::vector<ClickTerminal::LayoutSlot>          _overlaySlots;
+        std::vector<ClickTerminal::Project>             _overlayProjects;
 
         // ClickTerminal: active AI session state (projectId -> weak Tab reference)
         std::unordered_map<std::wstring, winrt::weak_ref<winrt::TerminalApp::Tab>> _aiSessionTabs;
         // Output monitor revocation tokens per session
         std::unordered_map<std::wstring, winrt::event_token> _aiOutputTokens;
+        // ClickTerminal: regular terminal tabs opened per project (projectId -> weak Tab)
+        std::unordered_map<std::wstring, winrt::weak_ref<winrt::TerminalApp::Tab>> _projectTerminalTabs;
+        // ClickTerminal: overlay pane per project (projectId -> weak Pane)
+        std::unordered_map<std::wstring, std::weak_ptr<Pane>> _overlayPaneForProject;
 
         bool _displayingCloseDialog{ false };
         void _SettingsButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

@@ -31,12 +31,44 @@
             <StackPanel Orientation="Horizontal">
                 <Border x:Name="CTuxHeaderBorder"
                         Width="250">
-                    <TextBlock x:Name="CTuxHeaderText"
-                               Text="CTux"
-                               FontSize="14"
-                               FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Margin="14,0,0,0" />
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock x:Name="CTuxHeaderText"
+                                   Text="CTux v0.034"
+                                   FontSize="14"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center"
+                                   Margin="14,0,0,0" />
+                        <Button x:Name="LayoutButton"
+                                Width="28"
+                                Height="28"
+                                Margin="6,0,2,0"
+                                Padding="0"
+                                VerticalAlignment="Center"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                Click="OnLayoutButtonClick">
+                            <FontIcon x:Name="LayoutButtonIcon"
+                                      FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                      FontSize="13"
+                                      Glyph="&#xE8A1;" />
+                        </Button>
+                        <Button x:Name="SidebarToggleButton"
+                                Width="28"
+                                Height="28"
+                                Margin="0,0,4,0"
+                                Padding="0"
+                                VerticalAlignment="Center"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                ToolTipService.ToolTip="Toggle Sidebar"
+                                Click="OnSidebarToggleClick">
+                            <FontIcon x:Name="SidebarToggleIcon"
+                                      FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                      FontSize="13"
+                                      Glyph="&#xE700;" />
+                        </Button>
+                    </StackPanel>
                 </Border>
                 <!--  EA18 is the "Shield" glyph  -->
                 <FontIcon x:Uid="ElevationShield"

@@ -32,6 +32,12 @@ namespace winrt::TerminalApp::implementation
         void _BrowsePluginsFolderClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                          const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
 
+        // Dialog lifecycle — resize with parent window
+        void _DialogOpened(const winrt::Windows::UI::Xaml::Controls::ContentDialog& sender,
+                           const winrt::Windows::UI::Xaml::Controls::ContentDialogOpenedEventArgs& args);
+        void _DialogClosed(const winrt::Windows::UI::Xaml::Controls::ContentDialog& sender,
+                           const winrt::Windows::UI::Xaml::Controls::ContentDialogClosedEventArgs& args);
+
         // Style tab handlers
         void _ThemePresetChanged(const winrt::Windows::Foundation::IInspectable& sender,
                                  const winrt::Windows::UI::Xaml::Controls::SelectionChangedEventArgs& e);
@@ -57,6 +63,11 @@ namespace winrt::TerminalApp::implementation
         std::vector<ClickTerminal::CTuxTheme> _allThemes;
         ClickTerminal::CTuxTheme _editingTheme;
         bool _suppressThemeChange{ false };
+
+        winrt::event_token _rootSizeToken{};
+        winrt::Windows::UI::Xaml::FrameworkElement _bgElement{ nullptr };
+        winrt::Windows::UI::Xaml::Controls::Grid _layoutRoot{ nullptr };
+        void _UpdateGridSize(winrt::Windows::Foundation::Size windowSize);
     };
 }
 

@@ -8,6 +8,7 @@ namespace TerminalApp
         ProjectSidebar();
 
         void Refresh();
+        void RefreshLayouts();
         void SetSessionActive(String projectId, Boolean active);
         void UpdateContextUsage(String projectId, UInt32 usedTokens, UInt32 totalTokens);
 
@@ -16,5 +17,7 @@ namespace TerminalApp
         event Windows.Foundation.TypedEventHandler<Object, String> StopAIRequested;
         event Windows.Foundation.TypedEventHandler<Object, String> OpenUrlRequested;
         event Windows.Foundation.TypedEventHandler<Object, String> CTuxThemeChanged;
+        event Windows.Foundation.TypedEventHandler<Object, String> ApplyLayoutRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> EditLayoutRequested;
     }
 }

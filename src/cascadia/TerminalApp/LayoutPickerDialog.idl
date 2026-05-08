@@ -1,0 +1,24 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass LayoutPickerDialog : Windows.UI.Xaml.Controls.ContentDialog
+    {
+        LayoutPickerDialog();
+
+        // Set available projects before showing
+        void SetProjectList(String projectsJson);   // JSON: [{id,name}]
+        // Set saved layouts before showing
+        void SetSavedLayouts(String layoutsJson);   // JSON: Layout array
+
+        // Results
+        String  LayoutName   { get; };
+        String  LayoutJson   { get; };  // the chosen layout as JSON for Apply
+        Boolean ShouldSave   { get; };  // true if Save was clicked
+        Boolean ShouldApply  { get; };  // true if Apply was clicked
+        String  DeleteId     { get; };  // non-empty if a saved layout was deleted
+        String  ApplySavedId { get; };  // non-empty if a saved layout Apply was clicked
+        String  EditingId    { get; };  // non-empty if Save updates an existing layout
+    }
+}

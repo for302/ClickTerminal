@@ -242,11 +242,9 @@ namespace winrt::TerminalApp::implementation
         // - we're not in focus mode
         // - we're not in full screen, or the user has enabled fullscreen tabs
         // - there is more than one tab, or the user has chosen to always show tabs
+        // ClickTerminal: always show the tab bar (tab count doesn't matter)
         const auto isVisible = !_isInFocusMode &&
-                               (!_isFullscreen || _showTabsFullscreen) &&
-                               (_settings.GlobalSettings().ShowTabsInTitlebar() ||
-                                (_tabs.Size() > 1) ||
-                                _settings.GlobalSettings().AlwaysShowTabs());
+                               (!_isFullscreen || _showTabsFullscreen);
 
         if (_tabView)
         {
@@ -413,6 +411,76 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        // ClickTerminal: if closing the layout overlay tab, send /exit to active AI panes first,
+        // then wait briefly so the AI tools can exit gracefully before the tab closes.
+        if (auto overlayTab = _layoutOverlayTab.get())
+        {
+            if (overlayTab == tab)
+            {
+                bool sentAny = false;
+                for (const auto& [projectId, weakPane] : _overlayPaneForProject)
+                {
+                    // Only send /exit to panes with a tracked AI session
+                    if (_aiSessionTabs.find(projectId) == _aiSessionTabs.end()) continue;
+
+                    auto pane = weakPane.lock();
+                    if (!pane) continue;
+                    auto ctrl = pane->GetTerminalControl();
+                    if (!ctrl) continue;
+
+                    ctrl.SendInput(hstring{ L"/exit\r" });
+                    sentAny = true;
+                }
+
+                if (sentAny)
+                {
+                    // Show a large centered overlay on the terminal content area
+                    Grid overlay;
+                    overlay.HorizontalAlignment(HorizontalAlignment::Stretch);
+                    overlay.VerticalAlignment(VerticalAlignment::Stretch);
+                    WUX::Media::SolidColorBrush overlayBg;
+                    overlayBg.Color({ 210, 12, 12, 22 });
+                    overlay.Background(overlayBg);
+
+                    StackPanel indicator;
+                    indicator.Orientation(Orientation::Vertical);
+                    indicator.HorizontalAlignment(HorizontalAlignment::Center);
+                    indicator.VerticalAlignment(VerticalAlignment::Center);
+                    indicator.Spacing(20.0);
+
+                    WUX::Media::SolidColorBrush textBrush;
+                    textBrush.Color({ 255, 215, 215, 230 });
+
+                    ProgressRing ring;
+                    ring.IsActive(true);
+                    ring.Width(56.0);
+                    ring.Height(56.0);
+                    ring.Foreground(textBrush);
+                    ring.HorizontalAlignment(HorizontalAlignment::Center);
+
+                    TextBlock msg;
+                    msg.Text(L"AI 종료 중...");
+                    msg.FontSize(18.0);
+                    msg.Foreground(textBrush);
+                    msg.HorizontalAlignment(HorizontalAlignment::Center);
+
+                    indicator.Children().Append(ring);
+                    indicator.Children().Append(msg);
+                    overlay.Children().Append(indicator);
+                    TabContent().Children().Append(overlay);
+
+                    const auto pageWeak = get_weak();
+                    co_await winrt::resume_after(std::chrono::milliseconds(2000));
+                    co_await wil::resume_foreground(Dispatcher());
+                    if (!pageWeak.get()) co_return;
+
+                    uint32_t idx;
+                    if (TabContent().Children().IndexOf(overlay, idx))
+                        TabContent().Children().RemoveAt(idx);
+                }
+            }
+        }
+
         auto t = winrt::get_self<implementation::Tab>(tab);
         auto actions = t->BuildStartupActions(BuildStartupKind::None);
         _AddPreviouslyClosedPaneOrTab(std::move(actions));
@@ -456,6 +524,13 @@ namespace winrt::TerminalApp::implementation
         if (_stashed.draggedTab && *_stashed.draggedTab == tab)
         {
             _stashed.draggedTab = nullptr;
+        }
+
+        // ClickTerminal: if the layout overlay tab is being closed, clear the pane info overlay
+        if (auto overlayTab = _layoutOverlayTab.get())
+        {
+            if (overlayTab == tab)
+                _ClearPaneInfoOverlay();
         }
 
         _tabs.RemoveAt(tabIndex);
@@ -1039,6 +1114,26 @@ namespace winrt::TerminalApp::implementation
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };
                 _UpdatedSelectedTab(tab);
+
+                // ClickTerminal: highlight the sidebar card for the now-active terminal tab
+                if (auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar()))
+                    sidebar->SetActiveTerminalByTitle(tab.Title());
+
+                // ClickTerminal: show/hide per-pane overlay strip
+                if (auto overlayTab = _layoutOverlayTab.get())
+                {
+                    if (tab == overlayTab)
+                    {
+                        _RepositionPaneInfoCards();
+                        PaneInfoStrip().Visibility(Visibility::Visible);
+                        PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
+                    }
+                    else
+                    {
+                        PaneInfoStrip().Visibility(Visibility::Collapsed);
+                        PaneInfoStripRow().Height(WUX::GridLength{ 0.0, WUX::GridUnitType::Pixel });
+                    }
+                }
             }
         }
     }

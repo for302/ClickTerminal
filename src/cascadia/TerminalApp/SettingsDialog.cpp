@@ -98,14 +98,75 @@ namespace winrt::TerminalApp::implementation
     }
 
     // -----------------------------------------------------------------------
+    // Dialog lifecycle — resize ContentGrid with parent window
+    // -----------------------------------------------------------------------
+    void SettingsDialog::_UpdateGridSize(winrt::Windows::Foundation::Size windowSize)
+    {
+        double w = std::max(620.0, (double)windowSize.Width  * 0.78);
+        double h = std::max(400.0, (double)windowSize.Height * 0.65);
+
+        if (_bgElement) { _bgElement.Width(w); }
+
+        // Do NOT set ContentGrid.Width — let it Stretch within BackgroundElement's padded
+        // ContentPresenter (explicit Width causes left-edge clipping: "eneral" bug).
+        ContentGrid().Height(h);
+    }
+
+    void SettingsDialog::_DialogOpened(const winrt::Windows::UI::Xaml::Controls::ContentDialog& /*sender*/,
+                                        const winrt::Windows::UI::Xaml::Controls::ContentDialogOpenedEventArgs& /*args*/)
+    {
+        // Belt-and-suspenders: also set LayoutRoot to Transparent directly in addition to
+        // the Resources override in ApplyTheme. Covers any post-template-apply reset.
+        _layoutRoot = GetTemplateChild(hstring{L"LayoutRoot"}).try_as<Grid>();
+        if (_layoutRoot)
+            _layoutRoot.Background(SolidColorBrush{ winrt::Windows::UI::Colors::Transparent() });
+
+        _bgElement = GetTemplateChild(hstring{L"BackgroundElement"}).try_as<FrameworkElement>();
+
+        if (auto root = XamlRoot())
+        {
+            _UpdateGridSize(root.Size());
+            _rootSizeToken = root.Changed([this](const winrt::Windows::UI::Xaml::XamlRoot& r,
+                                                  const winrt::Windows::UI::Xaml::XamlRootChangedEventArgs&) {
+                _UpdateGridSize(r.Size());
+            });
+        }
+    }
+
+    void SettingsDialog::_DialogClosed(const winrt::Windows::UI::Xaml::Controls::ContentDialog& /*sender*/,
+                                        const winrt::Windows::UI::Xaml::Controls::ContentDialogClosedEventArgs& /*args*/)
+    {
+        if (auto root = XamlRoot())
+        {
+            root.Changed(_rootSizeToken);
+            _rootSizeToken = {};
+        }
+        _bgElement  = nullptr;
+        _layoutRoot = nullptr;
+    }
+
+    // -----------------------------------------------------------------------
     // Apply theme colors to dialog surfaces (before ShowAsync)
     // -----------------------------------------------------------------------
     void SettingsDialog::ApplyTheme(const ClickTerminal::CTuxTheme& theme)
     {
         try
         {
-            ContentGrid().Background(SolidColorBrush{ ParseHexColor(theme.Colors.DialogBg) });
+            auto bgBrush = SolidColorBrush{ ParseHexColor(theme.Colors.DialogBg) };
+
+            // ContentDialogBackground → BackgroundElement.Background via ThemeResource
+            Resources().Insert(winrt::box_value(hstring{L"ContentDialogBackground"}), bgBrush);
+
+            // Make LayoutRoot transparent so the SmokeLayerBackground (#99000000) shows through
+            // properly — revealing the dimmed app content behind the dialog (standard smoke effect).
+            // Without this, RequestedTheme() re-evaluation resets LayoutRoot to white/gray.
+            Resources().Insert(winrt::box_value(hstring{L"SystemControlPageBackgroundMediumAltMediumBrush"}),
+                               SolidColorBrush{ winrt::Windows::UI::Colors::Transparent() });
+
+            Background(bgBrush);
+            ContentGrid().Background(bgBrush);
             NavPanel().Background(SolidColorBrush{ ParseHexColor(theme.Colors.DialogNavBg) });
+            // RequestedTheme LAST — ThemeResource re-evaluation now finds both our overrides above
             RequestedTheme(theme.IsLightMode ? ElementTheme::Light : ElementTheme::Dark);
         }
         catch (...) {}

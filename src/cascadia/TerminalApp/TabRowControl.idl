@@ -9,5 +9,7 @@ namespace TerminalApp
         TabRowControl();
         Microsoft.UI.Xaml.Controls.TabView TabView { get; };
         Boolean ShowElevationShield;
+        event Windows.Foundation.TypedEventHandler<Object, Object> LayoutButtonClicked;
+        event Windows.Foundation.TypedEventHandler<Object, Object> SidebarToggleClicked;
     }
 }

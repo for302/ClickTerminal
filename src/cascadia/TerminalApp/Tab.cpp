@@ -374,9 +374,45 @@ namespace winrt::TerminalApp::implementation
     // - iconPath: The new path string to use as the IconPath for our TabViewItem
     // Return Value:
     // - <none>
+    void Tab::SetLayoutIcon()
+    {
+        ASSERT_UI_THREAD();
+        _useLayoutIcon = true;
+        _lastIconPath = L"__layout__";
+
+        // Build a 3×3 grid of small squares as a PathGeometry
+        namespace WUXMedia = winrt::Windows::UI::Xaml::Media;
+        WUXMedia::PathGeometry geom;
+        constexpr float sz = 4.0f, gap = 1.5f;
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                float x = c * (sz + gap);
+                float y = r * (sz + gap);
+                WUXMedia::PathFigure fig;
+                fig.StartPoint({ x, y });
+                fig.IsClosed(true);
+                fig.IsFilled(true);
+                auto segs = fig.Segments();
+                WUXMedia::LineSegment ls1; ls1.Point({ x + sz, y });     segs.Append(ls1);
+                WUXMedia::LineSegment ls2; ls2.Point({ x + sz, y + sz }); segs.Append(ls2);
+                WUXMedia::LineSegment ls3; ls3.Point({ x, y + sz });      segs.Append(ls3);
+                geom.Figures().Append(fig);
+            }
+        }
+
+        winrt::MUX::Controls::PathIconSource iconSrc;
+        iconSrc.Data(geom);
+        TabViewItem().IconSource(iconSrc);
+    }
+
     void Tab::UpdateIcon(const winrt::hstring& iconPath, const winrt::Microsoft::Terminal::Settings::Model::IconStyle iconStyle)
     {
         ASSERT_UI_THREAD();
+
+        // Don't override the layout grid icon set by SetLayoutIcon()
+        if (_useLayoutIcon) return;
 
         // Don't reload our icon and iconStyle hasn't changed.
         if (iconPath == _lastIconPath && iconStyle == _lastIconStyle)

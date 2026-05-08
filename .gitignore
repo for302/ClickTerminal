@@ -286,3 +286,14 @@ profiles.json
 
 # MSBuildCache
 /MSBuildCacheLogs/
+# ClickTerminal build artifacts
+_msix_extract/
+_release/
+_build_log.txt
+_build_final.txt
+_build_modellib.txt
+_build_step1.txt
+resources.pri.xml
+~*.DDF
+*.zip
+.claude/

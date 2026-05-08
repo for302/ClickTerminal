@@ -25,6 +25,7 @@ namespace ClickTerminal
 
     struct AIToolInvocationConfig
     {
+        std::wstring StartCommand;   // custom launch command for this specific tool
         bool         Enabled{ false };
 
         // Claude
@@ -45,6 +46,7 @@ namespace ClickTerminal
     struct ProjectAIConfig
     {
         std::wstring           DefaultTool{ L"claude" };
+        bool                   AutoStartAI{ false };
         AIToolInvocationConfig Claude;
         AIToolInvocationConfig Codex;
         AIToolInvocationConfig Gemini;
@@ -71,6 +73,11 @@ namespace ClickTerminal
         // Network
         std::vector<int32_t>      Ports;
         std::vector<ProjectUrl>   Urls;
+
+        // Named URLs (shown as quick-launch buttons)
+        std::wstring              DevUrl;
+        std::wstring              DeployUrl;
+        std::wstring              GitUrl;
 
         // AI
         ProjectAIConfig           AIConfig;

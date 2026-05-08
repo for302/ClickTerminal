@@ -1,0 +1,33 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallApp
+ShowInstallProgramWindow=1
+HideExtractAnimation=0
+UseLongFileName=1
+InsideCompressed=0
+CAB_FixedSize=0
+CAB_ResvCodeSigning=0
+RebootMode=N
+InstallPrompt=%InstallPrompt%
+DisplayLicense=
+FinishMessage=%FinishMessage%
+TargetName=%TargetName%
+FriendlyName=ClickTerminal Setup
+AppLaunched=%AppLaunched%
+PostInstallCmd=<none>
+AdminQuietInstCmd=
+UserQuietInstCmd=
+SourceFiles=SourceFiles
+[SourceFiles]
+SourceFiles0=D:\Dev\20_PC\ClickTerminal\_release\
+[SourceFiles0]
+%CascadiaPackage_new.msix%=
+%ClickTerminalDev.cer%=
+%install.cmd%=
+[Strings]
+InstallPrompt=
+FinishMessage=Installation complete!
+TargetName=D:\Dev\20_PC\ClickTerminal\ClickTerminal-Setup.exe
+AppLaunched=install.cmd

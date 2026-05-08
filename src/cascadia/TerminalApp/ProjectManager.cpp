@@ -303,6 +303,10 @@ namespace ClickTerminal
                 project.Ports.push_back(port.asInt());
             }
 
+            project.DevUrl    = NarrowToWide(pj.get("devUrl",    "").asString());
+            project.DeployUrl = NarrowToWide(pj.get("deployUrl", "").asString());
+            project.GitUrl    = NarrowToWide(pj.get("gitUrl",    "").asString());
+
             for (const auto& url : pj["urls"])
             {
                 ProjectUrl u;
@@ -317,10 +321,12 @@ namespace ClickTerminal
             if (!ai.isNull())
             {
                 project.AIConfig.DefaultTool = NarrowToWide(ai.get("defaultTool", "claude").asString());
+                project.AIConfig.AutoStartAI = ai.get("autoStartAI", false).asBool();
 
                 const auto& claude = ai["claude"];
                 if (!claude.isNull())
                 {
+                    project.AIConfig.Claude.StartCommand = NarrowToWide(claude.get("startCommand", "").asString());
                     project.AIConfig.Claude.Enabled = claude.get("enabled", false).asBool();
                     project.AIConfig.Claude.DangerouslySkipPermissions = claude.get("dangerouslySkipPermissions", false).asBool();
                     project.AIConfig.Claude.PermissionMode = NarrowToWide(claude.get("permissionMode", "default").asString());
@@ -328,10 +334,16 @@ namespace ClickTerminal
                     project.AIConfig.Claude.McpConfigPath = NarrowToWide(claude.get("mcpConfigPath", "").asString());
                     project.AIConfig.Claude.AppendSystemPrompt = NarrowToWide(claude.get("appendSystemPrompt", "").asString());
                     for (const auto& dir : claude["addDirs"])
-                    {
                         project.AIConfig.Claude.AddDirs.push_back(NarrowToWide(dir.asString()));
-                    }
                 }
+
+                const auto& codex = ai["codex"];
+                if (!codex.isNull())
+                    project.AIConfig.Codex.StartCommand = NarrowToWide(codex.get("startCommand", "").asString());
+
+                const auto& gemini = ai["gemini"];
+                if (!gemini.isNull())
+                    project.AIConfig.Gemini.StartCommand = NarrowToWide(gemini.get("startCommand", "").asString());
             }
 
             // Env vars
@@ -369,6 +381,10 @@ namespace ClickTerminal
             else if (p.Type == ProjectType::AIWorkflow) typeStr = "ai-workflow";
             pj["type"] = typeStr;
 
+            if (!p.DevUrl.empty())    pj["devUrl"]    = WideToNarrow(p.DevUrl);
+            if (!p.DeployUrl.empty()) pj["deployUrl"] = WideToNarrow(p.DeployUrl);
+            if (!p.GitUrl.empty())    pj["gitUrl"]    = WideToNarrow(p.GitUrl);
+
             if (!p.ColorScheme.empty()) pj["colorScheme"] = WideToNarrow(p.ColorScheme);
             if (!p.StartupCommand.empty()) pj["startupCommand"] = WideToNarrow(p.StartupCommand);
             if (!p.Icon.empty()) pj["icon"] = WideToNarrow(p.Icon);
@@ -399,8 +415,10 @@ namespace ClickTerminal
             {
                 Json::Value ai;
                 ai["defaultTool"] = WideToNarrow(p.AIConfig.DefaultTool);
+                if (p.AIConfig.AutoStartAI) ai["autoStartAI"] = true;
 
                 Json::Value claude;
+                if (!p.AIConfig.Claude.StartCommand.empty()) claude["startCommand"] = WideToNarrow(p.AIConfig.Claude.StartCommand);
                 claude["enabled"]    = p.AIConfig.Claude.Enabled;
                 claude["dangerouslySkipPermissions"] = p.AIConfig.Claude.DangerouslySkipPermissions;
                 claude["permissionMode"] = WideToNarrow(p.AIConfig.Claude.PermissionMode);
@@ -411,6 +429,19 @@ namespace ClickTerminal
                 for (const auto& dir : p.AIConfig.Claude.AddDirs) addDirs.append(WideToNarrow(dir));
                 claude["addDirs"] = addDirs;
                 ai["claude"] = claude;
+
+                if (!p.AIConfig.Codex.StartCommand.empty())
+                {
+                    Json::Value codex;
+                    codex["startCommand"] = WideToNarrow(p.AIConfig.Codex.StartCommand);
+                    ai["codex"] = codex;
+                }
+                if (!p.AIConfig.Gemini.StartCommand.empty())
+                {
+                    Json::Value gemini;
+                    gemini["startCommand"] = WideToNarrow(p.AIConfig.Gemini.StartCommand);
+                    ai["gemini"] = gemini;
+                }
 
                 pj["aiTool"] = ai;
             }
@@ -464,21 +495,28 @@ namespace ClickTerminal
 
     std::wstring ProjectManager::GetDefaultConfigPath()
     {
+        // Use USERPROFILE to get real (non-virtualized) AppData path.
+        // FOLDERID_LocalAppData under MSIX is package-virtualized and wiped on reinstall.
+        wchar_t profile[MAX_PATH] = {};
+        DWORD len = GetEnvironmentVariableW(L"USERPROFILE", profile, MAX_PATH);
+        if (len > 0 && len < MAX_PATH)
+        {
+            std::wstring dir = std::wstring(profile, len) + L"\\AppData\\Local\\ClickTerminal";
+            std::filesystem::create_directories(dir);
+            return dir + L"\\clickterminal.json";
+        }
+        // Fallback: virtualized path
         wchar_t* appDataRaw = nullptr;
         if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &appDataRaw)))
         {
             CoTaskMemFree(appDataRaw);
             return L"";
         }
-
         std::wstring path(appDataRaw);
         CoTaskMemFree(appDataRaw);
-
         path += L"\\ClickTerminal";
         std::filesystem::create_directories(path);
-        path += L"\\clickterminal.json";
-
-        return path;
+        return path + L"\\clickterminal.json";
     }
 
 } // namespace ClickTerminal

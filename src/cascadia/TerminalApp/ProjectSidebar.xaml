@@ -32,16 +32,6 @@
                         Orientation="Horizontal"
                         Spacing="2"
                         VerticalAlignment="Center">
-                <Button x:Name="AISetupButton"
-                        Width="28"
-                        Height="28"
-                        Padding="0"
-                        Click="_AISetupClicked"
-                        ToolTipService.ToolTip="AI Tool Setup">
-                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                              FontSize="12"
-                              Glyph="&#xEDE3;" />
-                </Button>
                 <Button x:Name="AddProjectButton"
                         Width="28"
                         Height="28"

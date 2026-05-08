@@ -7,6 +7,8 @@
 #include "ProjectManager.h"
 #include "AIToolManager.h"
 #include "CTuxTheme.h"
+#include "LayoutManager.h"
+#include <unordered_set>
 
 namespace winrt::TerminalApp::implementation
 {
@@ -15,14 +17,21 @@ namespace winrt::TerminalApp::implementation
         ProjectSidebar();
 
         void Refresh();
+        void RefreshTheme();
         void SetSessionActive(const winrt::hstring& projectId, bool active);
         void UpdateContextUsage(const winrt::hstring& projectId, uint32_t usedTokens, uint32_t totalTokens);
+        void SetActiveTerminalByTitle(const winrt::hstring& tabTitle);
+        void ShowEditProject(const winrt::hstring& projectId);
 
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> OpenTerminalRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> StartAIRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> StopAIRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> OpenUrlRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> CTuxThemeChanged;
+        til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> ApplyLayoutRequested;
+        til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> EditLayoutRequested;
+
+        void RefreshLayouts();
 
         ClickTerminal::ProjectManager& ProjectManagerRef() { return *_projectManager; }
 
@@ -31,27 +40,43 @@ namespace winrt::TerminalApp::implementation
                                                const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
         safe_void_coroutine _SettingsClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                              const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
-        safe_void_coroutine _AISetupClicked(const winrt::Windows::Foundation::IInspectable& sender,
-                                            const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
 
     private:
         std::unique_ptr<ClickTerminal::ProjectManager> _projectManager;
+        std::unique_ptr<ClickTerminal::LayoutManager>  _layoutManager;
         std::unordered_map<std::wstring, bool>                            _activeSessions;
         std::unordered_map<std::wstring, std::pair<uint32_t, uint32_t>>  _contextUsage;
         std::unordered_map<std::wstring, winrt::TerminalApp::ContextMeter> _meterControls;
         ClickTerminal::CTuxTheme _activeTheme;
+        std::wstring _activeTerminalProjectId; // projectId whose terminal tab is currently focused
+
+        // Plugin flags (loaded from CTuxSettings)
+        bool _gitPluginEnabled { false };
+        bool _portPluginEnabled{ false };
+
+        // Git Integration cache: projectId → "⎇ branch ✱N"
+        std::unordered_map<std::wstring, std::wstring> _gitStatusCache;
 
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingSettingsOp{ nullptr };
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingAddProjectOp{ nullptr };
-        winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingAISetupOp{ nullptr };
+        winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingEditOp{ nullptr };
 
         void _BuildProjectList();
+        void _BuildLayoutSection();
+        winrt::Windows::UI::Xaml::UIElement _BuildLayoutCard(const ClickTerminal::Layout& layout);
         winrt::Windows::UI::Xaml::UIElement _BuildProjectCard(const ClickTerminal::Project& project);
         void _ApplyTheme(const ClickTerminal::CTuxTheme& theme);
 
-        safe_void_coroutine _ShowRenameDialog(std::wstring projectId);
         safe_void_coroutine _ShowDeleteConfirm(std::wstring projectId);
-        safe_void_coroutine _ShowColorSchemeDialog(std::wstring projectId);
+        safe_void_coroutine _ShowEditDialog(std::wstring projectId);
+
+        // Git Integration
+        static std::wstring _RunGitCommand(const std::wstring& folder, const std::wstring& args);
+        winrt::fire_and_forget _FetchGitStatusAsync(std::wstring projectId, std::wstring folderPath,
+                                                    winrt::Windows::UI::Xaml::Controls::TextBlock block);
+
+        // Port Monitor
+        static std::unordered_set<int> _GetActiveTcpPorts();
     };
 }
 

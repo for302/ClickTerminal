@@ -7,10 +7,16 @@ namespace TerminalApp
     {
         AddProjectDialog();
 
-        String ProjectName  { get; };
-        String FolderPath   { get; };
-        String ProjectType  { get; };   // "web" | "app" | "ai-workflow"
-        String DefaultAITool{ get; };   // "claude" | "codex" | "gemini" | ""
-        String ColorScheme  { get; };   // "" | "CTux Dark" | "CTux Light" | ...
+        String ProjectName       { get; };
+        String FolderPath        { get; };
+        String ProjectType       { get; };   // "web" | "app" | "ai-workflow"
+        String DefaultAITool     { get; };   // "claude" | "codex" | "gemini" | ""
+        String  ClaudeStartCommand{ get; };
+        String  CodexStartCommand { get; };
+        String  GeminiStartCommand{ get; };
+        Boolean AutoStartAI       { get; };
+        String  DevUrl            { get; };
+        String  DeployUrl         { get; };
+        String  GitUrl            { get; };
     }
 }

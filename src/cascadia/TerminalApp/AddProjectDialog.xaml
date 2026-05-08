@@ -8,7 +8,6 @@
                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                CloseButtonText="Cancel"
-               DefaultButton="Primary"
                PrimaryButtonText="Add"
                Title="Add Project"
                mc:Ignorable="d">
@@ -37,6 +36,7 @@
         <TextBlock FontWeight="SemiBold"
                    Text="Project Name" />
         <TextBox x:Name="ProjectNameBox"
+                 GotFocus="_OnTextBoxGotFocus"
                  PlaceholderText="My App / 내 앱 / 我的应用" />
 
         <!-- Folder Path -->
@@ -49,6 +49,7 @@
             </Grid.ColumnDefinitions>
             <TextBox x:Name="FolderPathBox"
                      Grid.Column="0"
+                     GotFocus="_OnTextBoxGotFocus"
                      PlaceholderText="C:\Projects\MyApp" />
             <Button x:Name="BrowseButton"
                     Grid.Column="1"
@@ -80,23 +81,40 @@
             <ComboBoxItem Content="None" />
         </ComboBox>
 
-        <!-- Color Scheme -->
+        <!-- AI Start Command -->
         <TextBlock FontWeight="SemiBold"
-                   Text="Terminal Color Scheme" />
-        <ComboBox x:Name="ColorSchemeBox"
-                  HorizontalAlignment="Stretch"
-                  SelectedIndex="0">
-            <ComboBoxItem Content="Default" />
-            <ComboBoxItem Content="CTux Dark" />
-            <ComboBoxItem Content="CTux Light" />
-            <ComboBoxItem Content="Campbell" />
-            <ComboBoxItem Content="One Half Dark" />
-            <ComboBoxItem Content="One Half Light" />
-            <ComboBoxItem Content="Solarized Dark" />
-            <ComboBoxItem Content="Solarized Light" />
-            <ComboBoxItem Content="Tango Dark" />
-            <ComboBoxItem Content="Tango Light" />
-        </ComboBox>
+                   Text="AI Start Command" />
+        <TextBox x:Name="AIStartCommandBox"
+                 GotFocus="_OnTextBoxGotFocus"
+                 PlaceholderText="claude" />
+        <CheckBox x:Name="AutoStartAIBox"
+                  Content="터미널 시작시 바로 실행"
+                  Margin="0,2,0,0"/>
+
+        <!-- URLs -->
+        <TextBlock FontWeight="SemiBold"
+                   Margin="0,8,0,0"
+                   Text="URLs" />
+        <TextBlock FontSize="11"
+                   Opacity="0.65"
+                   Text="Dev URL" />
+        <TextBox x:Name="DevUrlBox"
+                 GotFocus="_OnTextBoxGotFocus"
+                 PlaceholderText="http://localhost:3000" />
+        <TextBlock FontSize="11"
+                   Margin="0,4,0,0"
+                   Opacity="0.65"
+                   Text="Deploy URL" />
+        <TextBox x:Name="DeployUrlBox"
+                 GotFocus="_OnTextBoxGotFocus"
+                 PlaceholderText="https://my-app.example.com" />
+        <TextBlock FontSize="11"
+                   Margin="0,4,0,0"
+                   Opacity="0.65"
+                   Text="Git URL" />
+        <TextBox x:Name="GitUrlBox"
+                 GotFocus="_OnTextBoxGotFocus"
+                 PlaceholderText="https://github.com/user/repo" />
 
     </StackPanel>
 </ContentDialog>

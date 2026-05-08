@@ -47,13 +47,13 @@ namespace ClickTerminal
             },
             {
                 L"CTux Light", true, true,
-                { L"#EDE0CD", L"#E2D1BB", L"#3D2B1A", L"#7A6050",
-                  L"#E2D1BB", L"#F5EDDF", L"#EDE0CD", L"CTux Light" }
+                { L"#C4A882", L"#B5956A", L"#2C1D0E", L"#7A5C3A",
+                  L"#B5956A", L"#F5EDDF", L"#EDE0CD", L"CTux Light" }
             },
             {
                 L"Mocha", true, false,
                 { L"#2D1F16", L"#1E1208", L"#F5DEB3", L"#A08060",
-                  L"#1E1208", L"#352515", L"#2A1A0D", L"CTux Dark" }
+                  L"#1E1208", L"#352515", L"#2A1A0D", L"CTux Mocha" }
             },
             {
                 L"Ocean", true, false,
@@ -144,6 +144,18 @@ namespace ClickTerminal
     // -----------------------------------------------------------------------
     std::wstring CTuxSettings::GetDefaultDir()
     {
+        // Use USERPROFILE to get real (non-virtualized) AppData path.
+        // FOLDERID_LocalAppData under MSIX returns a package-container path
+        // that is wiped on clean reinstall, losing user settings.
+        wchar_t profile[MAX_PATH] = {};
+        DWORD len = GetEnvironmentVariableW(L"USERPROFILE", profile, MAX_PATH);
+        if (len > 0 && len < MAX_PATH)
+        {
+            std::wstring p = std::wstring(profile, len) + L"\\AppData\\Local\\ClickTerminal";
+            std::filesystem::create_directories(p);
+            return p;
+        }
+        // Fallback: virtualized path (may not survive reinstall)
         wchar_t* raw = nullptr;
         if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &raw)))
         {
@@ -325,8 +337,34 @@ namespace ClickTerminal
             return s;
         };
 
+        auto makeMocha = []() {
+            Json::Value s;
+            s["name"]                = "CTux Mocha";
+            s["background"]          = "#2D1F16";
+            s["foreground"]          = "#F5DEB3";
+            s["black"]               = "#3D2B1E";
+            s["brightBlack"]         = "#5C4033";
+            s["red"]                 = "#C44535";
+            s["brightRed"]           = "#E05040";
+            s["green"]               = "#7C9C4F";
+            s["brightGreen"]         = "#96B865";
+            s["yellow"]              = "#C8943A";
+            s["brightYellow"]        = "#E8A84A";
+            s["blue"]                = "#6A8FAE";
+            s["brightBlue"]          = "#84AAC8";
+            s["purple"]              = "#9A6B8F";
+            s["brightPurple"]        = "#B585A9";
+            s["cyan"]                = "#6A9A8A";
+            s["brightCyan"]          = "#84B4A4";
+            s["white"]               = "#D4B896";
+            s["brightWhite"]         = "#EDD8BA";
+            s["cursorColor"]         = "#F5DEB3";
+            s["selectionBackground"] = "#5C4033";
+            return s;
+        };
+
         auto& schemes = root["schemes"];
-        bool hasDark = false, hasLight = false;
+        bool hasDark = false, hasLight = false, hasMocha = false;
         if (schemes.isArray())
         {
             for (const auto& s : schemes)
@@ -334,12 +372,19 @@ namespace ClickTerminal
                 auto n = s.get("name", "").asString();
                 if (n == "CTux Dark")  hasDark  = true;
                 if (n == "CTux Light") hasLight = true;
+                if (n == "CTux Mocha") hasMocha = true;
             }
         }
         if (!hasDark)  schemes.append(makeDark());
         if (!hasLight) schemes.append(makeLight());
+        if (!hasMocha) schemes.append(makeMocha());
 
         root["profiles"]["defaults"]["colorScheme"] = schemeName;
+        if (schemeName == "CTux Mocha")
+        {
+            root["profiles"]["defaults"]["font"]["face"]  = "Cascadia Mono";
+            root["profiles"]["defaults"]["font"]["style"] = "Italic";
+        }
 
         Json::StreamWriterBuilder wb;
         wb["indentation"] = "    ";

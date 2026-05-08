@@ -68,6 +68,7 @@ namespace winrt::TerminalApp::implementation
         void SetTabText(winrt::hstring title);
         winrt::hstring GetTabText() const;
         void ResetTabText();
+        void SetLayoutIcon();
         void ActivateTabRenamer();
 
         std::optional<winrt::Windows::UI::Color> GetTabColor();
@@ -200,6 +201,7 @@ namespace winrt::TerminalApp::implementation
         bool _receivedKeyDown{ false };
         bool _iconHidden{ false };
         bool _changingActivePane{ false };
+        bool _useLayoutIcon{ false };
 
         winrt::hstring _runtimeTabText{};
         bool _inRename{ false };

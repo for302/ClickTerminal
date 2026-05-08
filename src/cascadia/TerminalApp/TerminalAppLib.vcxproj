@@ -70,6 +70,9 @@
     <Page Include="AddProjectDialog.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="LayoutPickerDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="AISetupPage.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -147,6 +150,10 @@
     <ClInclude Include="AddProjectDialog.h">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
     </ClInclude>
+    <ClInclude Include="LayoutPickerDialog.h">
+      <DependentUpon>LayoutPickerDialog.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="LayoutManager.h" />
     <ClInclude Include="AISetupPage.h">
       <DependentUpon>AISetupPage.xaml</DependentUpon>
     </ClInclude>
@@ -275,6 +282,10 @@
     <ClCompile Include="AddProjectDialog.cpp">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="LayoutPickerDialog.cpp">
+      <DependentUpon>LayoutPickerDialog.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="LayoutManager.cpp" />
     <ClCompile Include="AISetupPage.cpp">
       <DependentUpon>AISetupPage.xaml</DependentUpon>
     </ClCompile>
@@ -402,6 +413,10 @@
     </Midl>
     <Midl Include="AddProjectDialog.idl">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="LayoutPickerDialog.idl">
+      <DependentUpon>LayoutPickerDialog.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="AISetupPage.idl">
