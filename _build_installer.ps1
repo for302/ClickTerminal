@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 
 $root     = 'D:\Dev\20_PC\ClickTerminal'
 $msixPath = "$root\_msix_extract\CascadiaPackage_new.msix"
-$cerPath  = "$root\ClickTerminalDev.cer"
+$cerPath  = "$root\_msix_extract\ClickTerminalDev_new.cer"
 $outExe   = "$root\ClickTerminal-Setup.exe"
 $csc      = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe'
 
@@ -24,6 +24,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 
 class Setup {
@@ -63,10 +64,13 @@ class Setup {
             Console.WriteLine("       OK");
 
             Console.WriteLine(" [2/3] Trusting certificate...");
-            RunPS(
-                "Import-Certificate -FilePath '" + cer + "' -CertStoreLocation 'Cert:\\LocalMachine\\Root' | Out-Null; " +
-                "Import-Certificate -FilePath '" + cer + "' -CertStoreLocation 'Cert:\\LocalMachine\\TrustedPeople' | Out-Null"
-            );
+            var cert = new X509Certificate2(cer);
+            foreach (var storeName in new[] { StoreName.Root, StoreName.TrustedPeople }) {
+                var store = new X509Store(storeName, StoreLocation.LocalMachine);
+                store.Open(OpenFlags.ReadWrite);
+                store.Add(cert);
+                store.Close();
+            }
             Console.WriteLine("       OK");
 
             Console.WriteLine(" [3/3] Installing ClickTerminal...");
