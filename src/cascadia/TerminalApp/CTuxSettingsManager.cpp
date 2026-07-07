@@ -120,7 +120,7 @@ namespace ClickTerminal
     // -----------------------------------------------------------------------
     // Schema versioning
     //   1 — original (theme: "dark"/"light", projectsConfigPath)
-    //   2 — added selectedThemeName, customThemes, pluginsFolder, plugins toggles
+    //   2 — added selectedThemeName, customThemes
     //   3 — current: explicit schemaVersion field, color fallbacks in custom themes
     // -----------------------------------------------------------------------
     static constexpr int kCurrentSchemaVersion = 3;
@@ -190,9 +190,6 @@ namespace ClickTerminal
 
         // ── v1 → v2: "theme" string became "selectedThemeName" ──────────────
         s.ProjectsConfigPath = NarrowToWide(root.get("projectsConfigPath", "").asString());
-        s.PluginsFolder      = NarrowToWide(root.get("pluginsFolder", "").asString());
-        s.GitPluginEnabled   = root.get("gitPluginEnabled", false).asBool();
-        s.PortPluginEnabled  = root.get("portPluginEnabled", false).asBool();
 
         if (root.isMember("selectedThemeName"))
             s.SelectedThemeName = NarrowToWide(root["selectedThemeName"].asString());
@@ -232,9 +229,6 @@ namespace ClickTerminal
         root["schemaVersion"]      = kCurrentSchemaVersion;
         root["projectsConfigPath"] = WideToNarrow(ProjectsConfigPath);
         root["selectedThemeName"]  = WideToNarrow(SelectedThemeName);
-        root["pluginsFolder"]      = WideToNarrow(PluginsFolder);
-        root["gitPluginEnabled"]   = GitPluginEnabled;
-        root["portPluginEnabled"]  = PortPluginEnabled;
 
         Json::Value ct(Json::arrayValue);
         for (const auto& t : CustomThemes)

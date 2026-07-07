@@ -172,6 +172,109 @@ namespace winrt::TerminalApp::implementation
     }
 
     // -----------------------------------------------------------------------
+    // Mode API: "add" | "edit" | "reorder". Unset = legacy combined view.
+    // -----------------------------------------------------------------------
+
+    void LayoutPickerDialog::SetMode(hstring const& mode)
+    {
+        _mode = mode;
+
+        const GridLength zeroLen { 0.0,   GridUnitType::Pixel };
+        const GridLength leftLen { 210.0, GridUnitType::Pixel };
+        const GridLength autoLen { 1.0,   GridUnitType::Auto  };
+        const GridLength starLen { 1.0,   GridUnitType::Star  };
+
+        if (_mode == L"add" || _mode == L"edit")
+        {
+            // Editor only
+            SavedSection().Visibility(Visibility::Collapsed);
+            SeparatorBorder().Visibility(Visibility::Collapsed);
+            EditorSection().Visibility(Visibility::Visible);
+            LeftCol().Width(zeroLen);
+            SepCol().Width(zeroLen);
+            RightCol().Width(starLen);
+            RootGrid().Width(460);
+            ReorderHint().Visibility(Visibility::Collapsed);
+            Title(winrt::box_value(hstring{ _mode == L"add" ? L"레이아웃 추가" : L"레이아웃 수정" }));
+            PrimaryButtonText(L"적용");
+            SecondaryButtonText(L"저장");
+            if (_mode == L"add")
+                _ResetEditor();
+        }
+        else if (_mode == L"reorder")
+        {
+            // Saved list only, items draggable
+            SavedSection().Visibility(Visibility::Visible);
+            SeparatorBorder().Visibility(Visibility::Collapsed);
+            EditorSection().Visibility(Visibility::Collapsed);
+            LeftCol().Width(starLen);
+            SepCol().Width(zeroLen);
+            RightCol().Width(zeroLen);
+            RootGrid().Width(340);
+            ReorderHint().Visibility(Visibility::Visible);
+            Title(winrt::box_value(hstring{ L"레이아웃 순서" }));
+            PrimaryButtonText(L"확인");
+            SecondaryButtonText(L"");
+            _RefreshSavedList();
+        }
+        else
+        {
+            // Legacy combined view (backward compatible)
+            _mode = hstring{};
+            SavedSection().Visibility(Visibility::Visible);
+            SeparatorBorder().Visibility(Visibility::Visible);
+            EditorSection().Visibility(Visibility::Visible);
+            LeftCol().Width(leftLen);
+            SepCol().Width(autoLen);
+            RightCol().Width(starLen);
+            RootGrid().Width(700);
+            ReorderHint().Visibility(Visibility::Collapsed);
+            Title(winrt::box_value(hstring{ L"레이아웃 관리" }));
+            PrimaryButtonText(L"적용");
+            SecondaryButtonText(L"저장");
+            _RefreshSavedList();
+        }
+    }
+
+    void LayoutPickerDialog::SetEditTarget(hstring const& layoutId)
+    {
+        const auto id = std::wstring{ layoutId };
+        for (const auto& l : _savedLayouts)
+        {
+            if (l.Id == id)
+            {
+                _editingId = hstring{ l.Id };
+                _LoadLayoutIntoEditor(l);
+                EditorTitle().Text(hstring{ L"수정: " + l.Name });
+                DeleteButton().Visibility(Visibility::Visible);
+                return;
+            }
+        }
+    }
+
+    hstring LayoutPickerDialog::ReorderedIdsJson()
+    {
+        if (_mode != L"reorder")
+            return hstring{};
+
+        auto toNarrow = [](const std::wstring& ws) {
+            if (ws.empty()) return std::string{};
+            int len = WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            std::string r(static_cast<size_t>(len) - 1, '\0');
+            WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), -1, r.data(), len, nullptr, nullptr);
+            return r;
+        };
+
+        Json::Value arr(Json::arrayValue);
+        for (const auto& l : _savedLayouts)
+            arr.append(toNarrow(l.Id));
+
+        Json::StreamWriterBuilder wb;
+        wb["indentation"] = "";
+        return hstring{ winrt::to_hstring(Json::writeString(wb, arr)) };
+    }
+
+    // -----------------------------------------------------------------------
     // Shape cell selection
     // -----------------------------------------------------------------------
 
@@ -196,10 +299,8 @@ namespace winrt::TerminalApp::implementation
         SlotSection().Visibility(Visibility::Visible);
         NameSection().Visibility(Visibility::Visible);
 
-        std::wstring lbl = std::to_wstring(_chosenRows) + L" row" +
-                           (_chosenRows > 1 ? L"s" : L"") + L"  ×  " +
-                           std::to_wstring(_chosenCols) + L" column" +
-                           (_chosenCols > 1 ? L"s" : L"");
+        std::wstring lbl = std::to_wstring(_chosenRows) + L"행  ×  " +
+                           std::to_wstring(_chosenCols) + L"열";
         ShapeLabel().Text(lbl);
     }
 
@@ -286,7 +387,7 @@ namespace winrt::TerminalApp::implementation
                 label.Opacity(0.5);
 
                 ComboBox box;
-                box.PlaceholderText(L"— default terminal —");
+                box.PlaceholderText(L"— 기본 터미널 —");
                 box.HorizontalAlignment(HorizontalAlignment::Stretch);
                 _PopulateSlotBox(box, L"");
 
@@ -309,7 +410,7 @@ namespace winrt::TerminalApp::implementation
 
         // First item: default terminal (empty id)
         ComboBoxItem defaultItem;
-        defaultItem.Content(winrt::box_value(hstring{ L"— default terminal —" }));
+        defaultItem.Content(winrt::box_value(hstring{ L"— 기본 터미널 —" }));
         defaultItem.Tag(winrt::box_value(hstring{}));
         box.Items().Append(defaultItem);
 
@@ -428,6 +529,13 @@ namespace winrt::TerminalApp::implementation
     void LayoutPickerDialog::OnApplyClicked(const IInspectable&,
                                              const ContentDialogButtonClickEventArgs& args)
     {
+        if (_mode == L"reorder")
+        {
+            // Reorder mode: primary = confirm. Result is exposed via ReorderedIdsJson().
+            _shouldApply = false;
+            _shouldSave  = false;
+            return;
+        }
         if (_chosenRows == 0)
         {
             args.Cancel(true); // keep dialog open
@@ -443,6 +551,8 @@ namespace winrt::TerminalApp::implementation
     void LayoutPickerDialog::OnSaveClicked(const IInspectable&,
                                             const ContentDialogButtonClickEventArgs& args)
     {
+        if (_mode == L"reorder")
+            return;
         if (_chosenRows == 0)
         {
             args.Cancel(true);
@@ -488,7 +598,7 @@ namespace winrt::TerminalApp::implementation
             {
                 _editingId = hstring{ l.Id };
                 _LoadLayoutIntoEditor(l);
-                EditorTitle().Text(hstring{ L"Edit: " + l.Name });
+                EditorTitle().Text(hstring{ L"수정: " + l.Name });
                 DeleteButton().Visibility(Visibility::Visible);
                 return;
             }
@@ -499,18 +609,29 @@ namespace winrt::TerminalApp::implementation
     {
         if (_editingId.empty()) return;
         _deleteId = _editingId;
+
+        if (_mode == L"edit")
+        {
+            // Edit mode: deletion closes the dialog; caller processes DeleteId.
+            Hide();
+            return;
+        }
+
         auto id = std::wstring{ _editingId };
         _savedLayouts.erase(std::remove_if(_savedLayouts.begin(), _savedLayouts.end(),
             [&id](const LayoutEntry& e) { return e.Id == id; }), _savedLayouts.end());
         _RefreshSavedList();
+        _ResetEditor();
+    }
 
-        // Reset editor to "New Layout" mode
+    void LayoutPickerDialog::_ResetEditor()
+    {
         _editingId  = hstring{};
         _chosenRows = 0;
         _chosenCols = 0;
         _UpdateShapeCells();
-        ShapeLabel().Text(hstring{ L"Click a cell to choose shape" });
-        EditorTitle().Text(hstring{ L"New Layout" });
+        ShapeLabel().Text(hstring{ L"셀을 클릭해 크기를 선택하세요" });
+        EditorTitle().Text(hstring{ L"새 레이아웃" });
         DeleteButton().Visibility(Visibility::Collapsed);
         SlotSection().Visibility(Visibility::Collapsed);
         NameSection().Visibility(Visibility::Collapsed);
@@ -540,15 +661,19 @@ namespace winrt::TerminalApp::implementation
 
         LayoutNameBox().Text(hstring{ layout.Name });
 
-        std::wstring lbl = std::to_wstring(_chosenRows) + L" row" +
-                           (_chosenRows > 1 ? L"s" : L"") + L"  ×  " +
-                           std::to_wstring(_chosenCols) + L" column" +
-                           (_chosenCols > 1 ? L"s" : L"");
+        std::wstring lbl = std::to_wstring(_chosenRows) + L"행  ×  " +
+                           std::to_wstring(_chosenCols) + L"열";
         ShapeLabel().Text(lbl);
     }
 
     void LayoutPickerDialog::_RefreshSavedList()
     {
+        if (_mode == L"reorder")
+        {
+            _RefreshReorderList();
+            return;
+        }
+
         if (_savedLayouts.empty())
         {
             NoSavedLabel().Visibility(Visibility::Visible);
@@ -618,6 +743,110 @@ namespace winrt::TerminalApp::implementation
             cardBorder.Child(card);
 
             SavedList().Children().Append(cardBorder);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Reorder mode: draggable saved-layout list
+    // -----------------------------------------------------------------------
+
+    void LayoutPickerDialog::_RefreshReorderList()
+    {
+        if (_savedLayouts.empty())
+        {
+            NoSavedLabel().Visibility(Visibility::Visible);
+            SavedList().Visibility(Visibility::Collapsed);
+            return;
+        }
+
+        NoSavedLabel().Visibility(Visibility::Collapsed);
+        SavedList().Visibility(Visibility::Visible);
+        SavedList().Children().Clear();
+
+        int32_t idx = 0;
+        for (const auto& l : _savedLayouts)
+        {
+            StackPanel row;
+            row.Orientation(Orientation::Horizontal);
+            row.Spacing(8);
+            Thickness rowPad{ 8.0, 8.0, 8.0, 8.0 };
+            row.Padding(rowPad);
+
+            TextBlock grip;
+            grip.Text(hstring{ L"≡" });
+            grip.FontSize(14);
+            grip.Opacity(0.5);
+
+            TextBlock nameText;
+            nameText.Text(hstring{ l.Name });
+            nameText.FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+            nameText.FontSize(13);
+            nameText.TextTrimming(winrt::Windows::UI::Xaml::TextTrimming::CharacterEllipsis);
+
+            TextBlock badge;
+            badge.Text(hstring{ std::to_wstring(l.Rows) + L" × " + std::to_wstring(l.Cols) });
+            badge.FontSize(11);
+            badge.Opacity(0.6);
+            badge.VerticalAlignment(VerticalAlignment::Center);
+
+            row.Children().Append(grip);
+            row.Children().Append(nameText);
+            row.Children().Append(badge);
+
+            Border cardBorder;
+            winrt::Windows::UI::Xaml::CornerRadius cr{ 6.0, 6.0, 6.0, 6.0 };
+            cardBorder.CornerRadius(cr);
+            Thickness borderThick{ 1.0, 1.0, 1.0, 1.0 };
+            cardBorder.BorderThickness(borderThick);
+            cardBorder.Child(row);
+
+            cardBorder.Tag(winrt::box_value(idx));
+            cardBorder.CanDrag(true);
+            cardBorder.AllowDrop(true);
+            cardBorder.DragStarting({ this, &LayoutPickerDialog::_OnReorderDragStarting });
+            cardBorder.DragOver({ this, &LayoutPickerDialog::_OnReorderDragOver });
+            cardBorder.Drop({ this, &LayoutPickerDialog::_OnReorderDrop });
+
+            SavedList().Children().Append(cardBorder);
+            idx++;
+        }
+    }
+
+    void LayoutPickerDialog::_OnReorderDragStarting(const IInspectable& sender, const DragStartingEventArgs& e)
+    {
+        if (auto border = sender.try_as<Border>())
+        {
+            _reorderDragSource = winrt::unbox_value_or<int32_t>(border.Tag(), -1);
+            e.Data().SetText(L"layoutreorder");
+            e.DragUI().SetContentFromDataPackage();
+        }
+    }
+
+    void LayoutPickerDialog::_OnReorderDragOver(const IInspectable&, const DragEventArgs& e)
+    {
+        if (e.DataView().Contains(StandardDataFormats::Text()))
+            e.AcceptedOperation(DataPackageOperation::Move);
+    }
+
+    void LayoutPickerDialog::_OnReorderDrop(const IInspectable& sender, const DragEventArgs&)
+    {
+        const int32_t src = _reorderDragSource;
+        _reorderDragSource = -1;
+        if (src < 0) return;
+
+        if (auto border = sender.try_as<Border>())
+        {
+            const int32_t dst = winrt::unbox_value_or<int32_t>(border.Tag(), -1);
+            if (dst < 0 || dst == src) return;
+            if (static_cast<size_t>(src) >= _savedLayouts.size() ||
+                static_cast<size_t>(dst) >= _savedLayouts.size()) return;
+
+            // Move src item to dst position (insert semantics)
+            auto item = std::move(_savedLayouts[src]);
+            _savedLayouts.erase(_savedLayouts.begin() + src);
+            _savedLayouts.insert(_savedLayouts.begin() + dst, std::move(item));
+
+            _RefreshSavedList();
         }
     }
 

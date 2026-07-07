@@ -62,7 +62,6 @@ namespace winrt::TerminalApp::implementation
             Background(strip);
             CTuxHeaderBorder().Background(strip);
             CTuxHeaderText().Foreground(fg);
-            LayoutButtonIcon().Foreground(fg);
             SidebarToggleIcon().Foreground(fg);
 
             auto res = TabView().Resources();
@@ -89,11 +88,6 @@ namespace winrt::TerminalApp::implementation
             res.Insert(winrt::box_value(winrt::hstring(L"TabViewItemHeaderBackgroundPressed")), makeShift(selDelta));
         }
         catch (...) {}
-    }
-
-    void TabRowControl::OnLayoutButtonClick(const IInspectable&, const winrt::Windows::UI::Xaml::RoutedEventArgs&)
-    {
-        LayoutButtonClicked.raise(*this, nullptr);
     }
 
     void TabRowControl::OnSidebarToggleClick(const IInspectable&, const winrt::Windows::UI::Xaml::RoutedEventArgs&)

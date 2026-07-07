@@ -27,6 +27,7 @@ namespace ClickTerminal
         std::vector<LayoutSlot> Slots;      // sparse; missing (r,c) = default terminal
         std::wstring            CreatedAt;
         std::wstring            LastUsedAt;
+        uint32_t                Order{ 0 }; // display order (0 = first)
     };
 
     class LayoutManager
@@ -48,6 +49,10 @@ namespace ClickTerminal
         std::optional<Layout>   GetLayoutById(const std::wstring& id) const;
         std::vector<Layout>     GetAllLayouts() const;
         bool                    TouchLayout(const std::wstring& id);
+
+        // Re-assign Order 0..N following the given id sequence.
+        // Layouts not present in orderedIds keep their relative order and go after.
+        void                    ReorderLayouts(const std::vector<std::wstring>& orderedIds);
 
         std::function<void()> OnLayoutsChanged;
 

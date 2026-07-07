@@ -15,9 +15,6 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring ProjectsConfigPath();
         winrt::hstring Theme();
         winrt::hstring SelectedThemeName();
-        winrt::hstring PluginsFolder();
-        bool           GitPluginEnabled();
-        bool           PortPluginEnabled();
 
         // Apply theme colors to dialog surfaces (call before ShowAsync)
         void ApplyTheme(const ClickTerminal::CTuxTheme& theme);
@@ -29,8 +26,6 @@ namespace winrt::TerminalApp::implementation
                                   const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
         void _CheckUpdateClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                  const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
-        void _BrowsePluginsFolderClicked(const winrt::Windows::Foundation::IInspectable& sender,
-                                         const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
 
         // Dialog lifecycle — resize with parent window
         void _DialogOpened(const winrt::Windows::UI::Xaml::Controls::ContentDialog& sender,
@@ -56,8 +51,6 @@ namespace winrt::TerminalApp::implementation
         void _SyncEditingTheme();
         void _LoadColorEditor(const ClickTerminal::CTuxTheme& theme);
         void _UpdateSwatch(const std::wstring& fieldName, const std::wstring& hexColor);
-        void _BrowseFolder(winrt::Windows::UI::Xaml::Controls::TextBox target);
-        void _RefreshPluginsList();
 
         // All themes (built-in + custom) for the combo
         std::vector<ClickTerminal::CTuxTheme> _allThemes;

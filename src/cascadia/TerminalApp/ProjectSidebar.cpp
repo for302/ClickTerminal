@@ -14,11 +14,6 @@
 #include <winrt/Windows.UI.Xaml.Shapes.h>
 #include <winrt/Windows.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Windows.System.Threading.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "ws2_32.lib")
 
 using namespace winrt;
 using namespace winrt::Windows::Foundation;
@@ -146,8 +141,6 @@ namespace winrt::TerminalApp::implementation
         auto settings = ClickTerminal::CTuxSettings::Load();
         DbgLog(L"[Sidebar] CTuxSettings loaded");
         _activeTheme        = settings.GetActiveTheme();
-        _gitPluginEnabled   = settings.GitPluginEnabled;
-        _portPluginEnabled  = settings.PortPluginEnabled;
         DbgLog(L"[Sidebar] GetActiveTheme OK");
 
         _projectManager = std::make_unique<ClickTerminal::ProjectManager>(settings.ProjectsConfigPath);
@@ -194,8 +187,6 @@ namespace winrt::TerminalApp::implementation
     {
         auto settings       = ClickTerminal::CTuxSettings::Load();
         _activeTheme        = settings.GetActiveTheme();
-        _gitPluginEnabled   = settings.GitPluginEnabled;
-        _portPluginEnabled  = settings.PortPluginEnabled;
         _ApplyTheme(_activeTheme);
     }
 
@@ -307,15 +298,70 @@ namespace winrt::TerminalApp::implementation
     void ProjectSidebar::_BuildLayoutSection()
     {
         auto layouts = _layoutManager->GetAllLayouts();
-        if (layouts.empty()) return;
 
-        TextBlock sectionLabel;
-        sectionLabel.Text(L"LAYOUTS");
-        sectionLabel.FontSize(9.0);
-        sectionLabel.Opacity(0.45);
-        sectionLabel.Margin({ 2, 2, 2, 4 });
-        sectionLabel.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
-        ProjectListPanel().Children().Append(sectionLabel);
+        // Header row: [LAYOUTS ......... ⚙(reorder) +(add)]
+        // Always shown so layouts can be added even when none exist yet.
+        Grid headerRow;
+        {
+            ColumnDefinition hc0; hc0.Width(MakeStar());
+            ColumnDefinition hc1; hc1.Width(MakeAuto());
+            ColumnDefinition hc2; hc2.Width(MakeAuto());
+            headerRow.ColumnDefinitions().Append(hc0);
+            headerRow.ColumnDefinitions().Append(hc1);
+            headerRow.ColumnDefinitions().Append(hc2);
+            headerRow.Margin({ 2, 2, 2, 4 });
+
+            TextBlock sectionLabel;
+            sectionLabel.Text(L"LAYOUTS");
+            sectionLabel.FontSize(9.0);
+            sectionLabel.Opacity(0.45);
+            sectionLabel.VerticalAlignment(VerticalAlignment::Center);
+            sectionLabel.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
+            Grid::SetColumn(sectionLabel, 0);
+            headerRow.Children().Append(sectionLabel);
+
+            auto makeHeaderBtn = [&](const wchar_t* glyph, const wchar_t* tooltip) {
+                Button btn;
+                btn.Width(22.0);
+                btn.Height(22.0);
+                btn.Padding({ 0, 0, 0, 0 });
+                btn.BorderThickness({ 0, 0, 0, 0 });
+                btn.Background(SolidColorBrush{ winrt::Windows::UI::Color{ 0, 0, 0, 0 } });
+                FontIcon icon;
+                icon.FontFamily(Media::FontFamily{ L"Segoe MDL2 Assets" });
+                icon.Glyph(glyph);
+                icon.FontSize(11.0);
+                icon.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
+                btn.Content(icon);
+                ToolTipService::SetToolTip(btn, winrt::box_value(hstring{ tooltip }));
+                return btn;
+            };
+
+            // ⚙ reorder button (only useful with 2+ layouts, but always visible for discoverability)
+            auto reorderBtn = makeHeaderBtn(L"\xE713", L"레이아웃 순서 변경");
+            {
+                auto weakSelf = get_weak();
+                reorderBtn.Click([weakSelf](const winrt::Windows::Foundation::IInspectable&, const RoutedEventArgs&) {
+                    if (auto self = weakSelf.get())
+                        self->ReorderLayoutsRequested.raise(*self, hstring{});
+                });
+            }
+            Grid::SetColumn(reorderBtn, 1);
+            headerRow.Children().Append(reorderBtn);
+
+            // + add-layout button (moved here from the tab row's CTux logo area)
+            auto addBtn = makeHeaderBtn(L"\xE710", L"레이아웃 추가");
+            {
+                auto weakSelf = get_weak();
+                addBtn.Click([weakSelf](const winrt::Windows::Foundation::IInspectable&, const RoutedEventArgs&) {
+                    if (auto self = weakSelf.get())
+                        self->AddLayoutRequested.raise(*self, hstring{});
+                });
+            }
+            Grid::SetColumn(addBtn, 2);
+            headerRow.Children().Append(addBtn);
+        }
+        ProjectListPanel().Children().Append(headerRow);
 
         for (const auto& layout : layouts)
             ProjectListPanel().Children().Append(_BuildLayoutCard(layout));
@@ -543,23 +589,6 @@ namespace winrt::TerminalApp::implementation
         pathText.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
         panel.Children().Append(pathText);
 
-        // --- Git Integration ---
-        if (_gitPluginEnabled)
-        {
-            TextBlock gitBlock;
-            gitBlock.FontSize(10.0);
-            gitBlock.Margin({ 0, 2, 0, 0 });
-            gitBlock.Opacity(0.75);
-            gitBlock.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
-            gitBlock.Text(L"⏎ ...");
-            panel.Children().Append(gitBlock);
-
-            if (_gitStatusCache.count(project.Id))
-                gitBlock.Text(_gitStatusCache[project.Id]);
-            else
-                _FetchGitStatusAsync(project.Id, project.FolderPath, gitBlock);
-        }
-
         // --- Ports / URLs ---
         if (!project.Ports.empty() || !project.Urls.empty())
         {
@@ -568,41 +597,18 @@ namespace winrt::TerminalApp::implementation
             portsRow.Margin({ 0, 2, 0, 0 });
             portsRow.Spacing(2.0);
 
-            if (_portPluginEnabled && !project.Ports.empty())
+            // Show configured ports as clickable localhost links
+            for (auto port : project.Ports)
             {
-                // Port Monitor ON: check active status
-                auto activePorts = _GetActiveTcpPorts();
-                for (auto port : project.Ports)
-                {
-                    bool isActive = activePorts.count(port) > 0;
-                    HyperlinkButton portLink;
-                    portLink.Padding({ 0, 0, 0, 0 });
-                    if (isActive)
-                        portLink.NavigateUri(Uri{ hstring{ L"http://localhost:" + std::to_wstring(port) } });
-                    TextBlock portText;
-                    portText.Text((isActive ? L"● :" : L"○ :") + std::to_wstring(port));
-                    portText.FontSize(10.0);
-                    portText.Foreground(MakeBrush(_activeTheme.Colors.SidebarText));
-                    portText.Opacity(isActive ? 1.0 : 0.4);
-                    portLink.Content(portText);
-                    portsRow.Children().Append(portLink);
-                }
-            }
-            else
-            {
-                // Port Monitor OFF: show configured ports as-is (original behavior)
-                for (auto port : project.Ports)
-                {
-                    HyperlinkButton portLink;
-                    portLink.NavigateUri(Uri{ hstring{ L"http://localhost:" + std::to_wstring(port) } });
-                    portLink.Padding({ 0, 0, 0, 0 });
-                    TextBlock portText;
-                    portText.Text(L":" + std::to_wstring(port));
-                    portText.FontSize(10.0);
-                    portText.Foreground(MakeBrush(_activeTheme.Colors.SidebarText));
-                    portLink.Content(portText);
-                    portsRow.Children().Append(portLink);
-                }
+                HyperlinkButton portLink;
+                portLink.NavigateUri(Uri{ hstring{ L"http://localhost:" + std::to_wstring(port) } });
+                portLink.Padding({ 0, 0, 0, 0 });
+                TextBlock portText;
+                portText.Text(L":" + std::to_wstring(port));
+                portText.FontSize(10.0);
+                portText.Foreground(MakeBrush(_activeTheme.Colors.SidebarText));
+                portLink.Content(portText);
+                portsRow.Children().Append(portLink);
             }
 
             for (const auto& url : project.Urls)
@@ -738,11 +744,6 @@ namespace winrt::TerminalApp::implementation
         ClickTerminal::CTuxSettings newSettings;
         newSettings.ProjectsConfigPath = std::wstring{ dialog.ProjectsConfigPath() };
         newSettings.SelectedThemeName  = std::wstring{ dialog.SelectedThemeName() };
-        newSettings.PluginsFolder      = std::wstring{ dialog.PluginsFolder() };
-        newSettings.GitPluginEnabled   = dialog.GitPluginEnabled();
-        newSettings.PortPluginEnabled  = dialog.PortPluginEnabled();
-        self->_gitPluginEnabled  = newSettings.GitPluginEnabled;
-        self->_portPluginEnabled = newSettings.PortPluginEnabled;
         // Preserve updated custom themes from dialog
         newSettings.CustomThemes = winrt::get_self<implementation::SettingsDialog>(dialog)->GetUpdatedCustomThemes();
         newSettings.Save();
@@ -941,103 +942,6 @@ namespace winrt::TerminalApp::implementation
         self->_projectManager->UpdateProject(project);
         self->_projectManager->SaveProjects();
         self->_BuildProjectList();
-    }
-
-    // -----------------------------------------------------------------------
-    // Git Integration helpers
-    // -----------------------------------------------------------------------
-
-    std::wstring ProjectSidebar::_RunGitCommand(const std::wstring& folder, const std::wstring& args)
-    {
-        std::wstring cmd = L"git -C \"" + folder + L"\" " + args;
-
-        SECURITY_ATTRIBUTES sa{ sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
-        HANDLE hRead = nullptr, hWrite = nullptr;
-        if (!CreatePipe(&hRead, &hWrite, &sa, 0)) return {};
-
-        STARTUPINFOW si{};
-        si.cb          = sizeof(si);
-        si.hStdOutput  = hWrite;
-        si.hStdError   = INVALID_HANDLE_VALUE;
-        si.dwFlags     = STARTF_USESTDHANDLES;
-
-        PROCESS_INFORMATION pi{};
-        std::wstring cmdBuf = cmd; // CreateProcessW needs mutable buffer
-        BOOL ok = CreateProcessW(nullptr, cmdBuf.data(), nullptr, nullptr,
-                                 TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
-        CloseHandle(hWrite);
-        if (!ok) { CloseHandle(hRead); return {}; }
-
-        std::string out;
-        char buf[256];
-        DWORD read = 0;
-        while (ReadFile(hRead, buf, sizeof(buf) - 1, &read, nullptr) && read > 0)
-        {
-            buf[read] = '\0';
-            out += buf;
-        }
-        CloseHandle(hRead);
-        WaitForSingleObject(pi.hProcess, 3000);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-
-        // trim trailing newline
-        while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
-
-        // narrow → wide
-        if (out.empty()) return {};
-        int len = MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, nullptr, 0);
-        std::wstring result(len, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, result.data(), len);
-        while (!result.empty() && result.back() == L'\0') result.pop_back();
-        return result;
-    }
-
-    winrt::fire_and_forget ProjectSidebar::_FetchGitStatusAsync(
-        std::wstring projectId, std::wstring folderPath,
-        winrt::Windows::UI::Xaml::Controls::TextBlock block)
-    {
-        auto weakSelf = get_weak();
-        co_await winrt::resume_background();
-
-        std::wstring branch = _RunGitCommand(folderPath, L"branch --show-current 2>NUL");
-        if (branch.empty()) co_return;
-
-        std::wstring status = _RunGitCommand(folderPath, L"status --porcelain 2>NUL");
-        int dirty = 0;
-        for (auto ch : status) if (ch == L'\n') dirty++;
-        if (!status.empty() && status.back() != L'\n') dirty++; // count last line without trailing newline
-
-        std::wstring label = L"⏎ " + branch; // ⎇
-        if (dirty > 0) label += L" ✱" + std::to_wstring(dirty); // ✱
-
-        auto self = weakSelf.get();
-        if (!self) co_return;
-        self->_gitStatusCache[projectId] = label;
-
-        co_await winrt::resume_foreground(Dispatcher());
-        if (block) block.Text(label);
-    }
-
-    // -----------------------------------------------------------------------
-    // Port Monitor helpers
-    // -----------------------------------------------------------------------
-
-    std::unordered_set<int> ProjectSidebar::_GetActiveTcpPorts()
-    {
-        std::unordered_set<int> result;
-        ULONG size = 0;
-        GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0);
-        if (size == 0) return result;
-        std::vector<uint8_t> buf(size);
-        auto* table = reinterpret_cast<MIB_TCPTABLE_OWNER_PID*>(buf.data());
-        if (GetExtendedTcpTable(table, &size, FALSE, AF_INET,
-                                TCP_TABLE_OWNER_PID_LISTENER, 0) == NO_ERROR)
-        {
-            for (DWORD i = 0; i < table->dwNumEntries; i++)
-                result.insert(static_cast<int>(ntohs(static_cast<u_short>(table->table[i].dwLocalPort))));
-        }
-        return result;
     }
 
 }

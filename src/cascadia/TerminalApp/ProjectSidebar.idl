@@ -19,5 +19,7 @@ namespace TerminalApp
         event Windows.Foundation.TypedEventHandler<Object, String> CTuxThemeChanged;
         event Windows.Foundation.TypedEventHandler<Object, String> ApplyLayoutRequested;
         event Windows.Foundation.TypedEventHandler<Object, String> EditLayoutRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> AddLayoutRequested;
+        event Windows.Foundation.TypedEventHandler<Object, String> ReorderLayoutsRequested;
     }
 }

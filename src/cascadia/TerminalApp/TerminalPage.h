@@ -339,14 +339,14 @@ namespace winrt::TerminalApp::implementation
         void _SidebarOpenUrlRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& url);
         void _SidebarApplyLayoutRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& layoutId);
         void _SidebarEditLayoutRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& layoutId);
+        void _SidebarAddLayoutRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& unused);
+        void _SidebarReorderLayoutsRequested(const winrt::Windows::Foundation::IInspectable& sender, const winrt::hstring& unused);
 
         // ClickTerminal: layout manager
-        void _TabRowLayoutButtonClicked(const winrt::Windows::Foundation::IInspectable& sender,
-                                        const winrt::Windows::Foundation::IInspectable& args);
         void _TabRowSidebarToggleClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                          const winrt::Windows::Foundation::IInspectable& args);
         bool _sidebarVisible{ true };
-        safe_void_coroutine _ShowLayoutDialog();
+        safe_void_coroutine _ShowLayoutDialog(winrt::hstring mode = {}, winrt::hstring editId = {});
         void _ApplyLayoutJson(const winrt::hstring& layoutJson);
         std::shared_ptr<Pane> _BuildPaneTreeFromLayout(uint32_t rows, uint32_t cols,
             const std::vector<ClickTerminal::LayoutSlot>& slots,
@@ -389,6 +389,7 @@ namespace winrt::TerminalApp::implementation
                                   bool aiRunning, bool openedFromSidebar,
                                   const winrt::TerminalApp::Tab& tab, const std::shared_ptr<Pane>& pane);
         void _CTuxMarkAIRunning(const std::shared_ptr<Pane>& pane, const std::wstring& toolId, bool running);
+        safe_void_coroutine _CTuxStartAIFlow(winrt::hstring projectId);
         bool _CTuxProjectHasRunningAI(const std::wstring& projectId);
         std::wstring _CTuxResolveAICommand(const ClickTerminal::Project& project) const;
         void _CTuxSendWhenReady(const winrt::Microsoft::Terminal::Control::TermControl& ctrl, const winrt::hstring& cmd);

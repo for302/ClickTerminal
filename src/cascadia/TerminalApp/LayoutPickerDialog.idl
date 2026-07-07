@@ -12,6 +12,12 @@ namespace TerminalApp
         // Set saved layouts before showing
         void SetSavedLayouts(String layoutsJson);   // JSON: Layout array
 
+        // Dialog mode: "add" | "edit" | "reorder". Unset = legacy combined view.
+        void SetMode(String mode);
+        String Mode { get; };
+        // edit mode: load one saved layout into the editor (call after SetSavedLayouts)
+        void SetEditTarget(String layoutId);
+
         // Results
         String  LayoutName   { get; };
         String  LayoutJson   { get; };  // the chosen layout as JSON for Apply
@@ -20,5 +26,6 @@ namespace TerminalApp
         String  DeleteId     { get; };  // non-empty if a saved layout was deleted
         String  ApplySavedId { get; };  // non-empty if a saved layout Apply was clicked
         String  EditingId    { get; };  // non-empty if Save updates an existing layout
+        String  ReorderedIdsJson { get; }; // reorder mode: JSON array of layout ids in final order
     }
 }

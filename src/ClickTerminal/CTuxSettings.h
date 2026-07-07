@@ -11,9 +11,6 @@ namespace ClickTerminal
     {
         std::wstring ProjectsConfigPath;
         std::wstring SelectedThemeName{ L"CTux Dark" };
-        std::wstring PluginsFolder;
-        bool GitPluginEnabled { false };
-        bool PortPluginEnabled{ false };
         std::vector<CTuxTheme> CustomThemes;
 
         // Returns the active CTuxTheme (built-in or custom)

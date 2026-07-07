@@ -344,7 +344,6 @@ namespace winrt::TerminalApp::implementation
         // ClickTerminal: layout manager
         _layoutManager = std::make_unique<ClickTerminal::LayoutManager>();
         _layoutManager->LoadLayouts();
-        _tabRow.LayoutButtonClicked({ get_weak(), &TerminalPage::_TabRowLayoutButtonClicked });
         _tabRow.SidebarToggleClicked({ get_weak(), &TerminalPage::_TabRowSidebarToggleClicked });
 
         // Wire up ClickTerminal project sidebar events
@@ -359,6 +358,8 @@ namespace winrt::TerminalApp::implementation
         _CrashLog(L"[Create] CTuxThemeChanged wired");
         Sidebar().ApplyLayoutRequested({ get_weak(), &TerminalPage::_SidebarApplyLayoutRequested });
         Sidebar().EditLayoutRequested({ get_weak(), &TerminalPage::_SidebarEditLayoutRequested });
+        Sidebar().AddLayoutRequested({ get_weak(), &TerminalPage::_SidebarAddLayoutRequested });
+        Sidebar().ReorderLayoutsRequested({ get_weak(), &TerminalPage::_SidebarReorderLayoutsRequested });
         Sidebar().OpenUrlRequested({ get_weak(), &TerminalPage::_SidebarOpenUrlRequested });
 
         // Apply saved CTux theme to tab row at startup

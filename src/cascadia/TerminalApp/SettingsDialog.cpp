@@ -44,9 +44,6 @@ namespace winrt::TerminalApp::implementation
         auto s = ClickTerminal::CTuxSettings::Load();
 
         ConfigPathBox().Text(hstring{ s.ProjectsConfigPath });
-        PluginsFolderBox().Text(hstring{ s.PluginsFolder });
-        GitPluginToggle().IsOn(s.GitPluginEnabled);
-        PortPluginToggle().IsOn(s.PortPluginEnabled);
 
         // Build _allThemes = built-ins + custom
         _allThemes = ClickTerminal::GetBuiltInThemes();
@@ -54,7 +51,6 @@ namespace winrt::TerminalApp::implementation
             _allThemes.push_back(ct);
 
         _PopulateThemeCombo();
-        _RefreshPluginsList();
 
         NavList().SelectedIndex(0);
     }
@@ -80,11 +76,6 @@ namespace winrt::TerminalApp::implementation
             return hstring{ _allThemes[idx].Name };
         return L"CTux Dark";
     }
-
-    hstring SettingsDialog::PluginsFolder() { return PluginsFolderBox().Text(); }
-
-    bool SettingsDialog::GitPluginEnabled()  { return GitPluginToggle().IsOn(); }
-    bool SettingsDialog::PortPluginEnabled() { return PortPluginToggle().IsOn(); }
 
     std::vector<ClickTerminal::CTuxTheme> SettingsDialog::GetUpdatedCustomThemes()
     {
@@ -184,7 +175,6 @@ namespace winrt::TerminalApp::implementation
         auto tagStr = unbox_value_or<hstring>(item.Tag(), L"general");
         GeneralPanel().Visibility(tagStr == L"general" ? Visibility::Visible : Visibility::Collapsed);
         StylePanel().Visibility(tagStr == L"style"    ? Visibility::Visible : Visibility::Collapsed);
-        PluginsPanel().Visibility(tagStr == L"plugins" ? Visibility::Visible : Visibility::Collapsed);
     }
 
     // -----------------------------------------------------------------------
@@ -401,35 +391,6 @@ namespace winrt::TerminalApp::implementation
     // -----------------------------------------------------------------------
     // Browse helpers
     // -----------------------------------------------------------------------
-    void SettingsDialog::_BrowseFolder(TextBox target)
-    {
-        IFileOpenDialog* pfd = nullptr;
-        HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
-                                      IID_PPV_ARGS(&pfd));
-        if (SUCCEEDED(hr))
-        {
-            DWORD dwOptions = 0;
-            pfd->GetOptions(&dwOptions);
-            pfd->SetOptions(dwOptions | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
-            hr = pfd->Show(nullptr);
-            if (SUCCEEDED(hr))
-            {
-                IShellItem* psi = nullptr;
-                if (SUCCEEDED(pfd->GetResult(&psi)))
-                {
-                    PWSTR pszPath = nullptr;
-                    if (SUCCEEDED(psi->GetDisplayName(SIGDN_FILESYSPATH, &pszPath)))
-                    {
-                        target.Text(hstring{ pszPath });
-                        CoTaskMemFree(pszPath);
-                    }
-                    psi->Release();
-                }
-            }
-            pfd->Release();
-        }
-    }
-
     void SettingsDialog::_BrowseConfigClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
     {
         IFileOpenDialog* pfd = nullptr;
@@ -469,29 +430,5 @@ namespace winrt::TerminalApp::implementation
     void SettingsDialog::_CheckUpdateClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
     {
         UpdateStatusText().Text(L"Update check — coming soon.");
-    }
-
-    void SettingsDialog::_BrowsePluginsFolderClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
-    {
-        _BrowseFolder(PluginsFolderBox());
-        _RefreshPluginsList();
-    }
-
-    void SettingsDialog::_RefreshPluginsList()
-    {
-        PluginList().Items().Clear();
-        auto folder = std::wstring{ PluginsFolderBox().Text() };
-        if (folder.empty() || !std::filesystem::is_directory(folder)) return;
-
-        for (const auto& entry : std::filesystem::directory_iterator(folder))
-        {
-            if (!entry.is_directory()) continue;
-            if (!std::filesystem::exists(entry.path() / L"ctux-plugin.json")) continue;
-
-            TextBlock tb;
-            tb.Text(hstring{ L"• " + entry.path().filename().wstring() });
-            tb.Padding({ 4, 2, 4, 2 });
-            PluginList().Items().Append(tb);
-        }
     }
 }

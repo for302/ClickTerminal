@@ -363,21 +363,29 @@ namespace winrt::TerminalApp::implementation
         pm.TouchProject(id);
     }
 
-    // ClickTerminal: Launch AI tool — reuse an idle project terminal, or open a new tab.
-    // Always launches with the resolved AI Start Command (user setting first).
+    // ClickTerminal: Launch AI tool — reuse an idle project terminal (after asking
+    // the user), or open a new tab. The event handler keeps its void signature;
+    // the actual work runs in the _CTuxStartAIFlow coroutine so we can await a
+    // ContentDialog.
     void TerminalPage::_SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                  const winrt::hstring& projectId)
     {
+        _CTuxStartAIFlow(projectId);
+    }
+
+    // Always launches with the resolved AI Start Command (user setting first).
+    safe_void_coroutine TerminalPage::_CTuxStartAIFlow(winrt::hstring projectId)
+    {
         auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar());
-        if (!sidebar) return;
+        if (!sidebar) co_return;
 
         auto& pm = sidebar->ProjectManagerRef();
         auto project = pm.GetProjectById(std::wstring{ projectId });
-        if (!project) return;
+        if (!project) co_return;
 
         auto id = std::wstring{ projectId };
         const auto toolName = std::wstring{ project->AIConfig.DefaultTool };
-        if (toolName.empty()) return;
+        if (toolName.empty()) co_return;
 
         _CTuxPruneSessions();
 
@@ -387,44 +395,90 @@ namespace winrt::TerminalApp::implementation
             _ShowControlNoticeDialog(
                 hstring{ L"AI 이미 실행 중" },
                 hstring{ L"이미 해당 프로젝트에서 " + toolName + L"가 시작 되었습니다." });
-            return;
+            co_return;
         }
 
         auto launchCmd = _CTuxResolveAICommand(*project);
-        if (launchCmd.empty()) return;
+        if (launchCmd.empty()) co_return;
 
-        // Reuse an existing sidebar-opened terminal that has no AI running
+        // Copy everything the new-tab path needs BEFORE any co_await — `project`
+        // points into the ProjectManager and must not be used across suspension.
+        const std::wstring projFolderPath{ project->FolderPath };
+        const std::wstring projName{ project->Name };
+        const std::wstring projColorScheme{ project->ColorScheme };
+
+        // Is there a sidebar-opened terminal for this project with no AI running?
+        bool hasReusable = false;
         for (auto& s : _ctuxSessions)
         {
             if (s.projectId != id || s.aiRunning || !s.openedFromSidebar) continue;
-            auto tab = s.tab.get();
-            auto pane = s.pane.lock();
-            if (!tab || !pane) continue;
-            uint32_t idx{};
-            if (!_tabs.IndexOf(tab, idx)) continue;
-            auto ctrl = pane->GetTerminalControl();
-            if (!ctrl) continue;
-
-            if (auto tabImpl = _GetTabImpl(tab))
-                if (auto paneId = pane->Id())
-                    tabImpl->FocusPane(paneId.value());
-            _SelectTab(idx);
-
-            _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
-            s.aiRunning = true;
-            s.toolId = toolName;
-            if (toolName == L"claude")
-                _CTuxAttachContextMonitor(id, ctrl);
-            Sidebar().SetSessionActive(projectId, true);
-            return;
+            if (!s.tab.get() || s.pane.expired()) continue;
+            hasReusable = true;
+            break;
         }
 
-        // No existing terminal — open a new shell tab and type the command into it
+        bool reuseExisting = false;
+        if (hasReusable)
+        {
+            WUX::Controls::ContentDialog dialog;
+            dialog.Title(winrt::box_value(hstring{ L"기존 터미널에서 실행" }));
+            dialog.Content(winrt::box_value(hstring{ L"이 프로젝트의 터미널 창이 이미 열려 있습니다.\n기존 터미널 창에서 실행하시겠습니까?" }));
+            dialog.PrimaryButtonText(L"예");
+            dialog.CloseButtonText(L"아니오");
+            dialog.DefaultButton(WUX::Controls::ContentDialogButton::Primary);
+            dialog.XamlRoot(XamlRoot());
+
+            CTuxLog(L"[CTux] StartAI: reuse prompt shown");
+
+            auto weakThis = get_weak();
+            const auto result = co_await dialog.ShowAsync();
+            if (!weakThis.get()) co_return;
+
+            reuseExisting = (result == WUX::Controls::ContentDialogResult::Primary);
+            CTuxLog(reuseExisting ? L"[CTux] StartAI: user chose existing" : L"[CTux] StartAI: user chose new");
+        }
+
+        if (reuseExisting)
+        {
+            // The session vector may have changed while the dialog was open —
+            // re-query instead of holding a pointer across the co_await.
+            _CTuxPruneSessions();
+            for (auto& s : _ctuxSessions)
+            {
+                if (s.projectId != id || s.aiRunning || !s.openedFromSidebar) continue;
+                auto tab = s.tab.get();
+                auto pane = s.pane.lock();
+                if (!tab || !pane) continue;
+                uint32_t idx{};
+                if (!_tabs.IndexOf(tab, idx)) continue;
+                auto ctrl = pane->GetTerminalControl();
+                if (!ctrl) continue;
+
+                if (auto tabImpl = _GetTabImpl(tab))
+                    if (auto paneId = pane->Id())
+                        tabImpl->FocusPane(paneId.value());
+                _SelectTab(idx);
+
+                _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
+                s.aiRunning = true;
+                s.toolId = toolName;
+                if (toolName == L"claude")
+                    _CTuxAttachContextMonitor(id, ctrl);
+                Sidebar().SetSessionActive(projectId, true);
+                co_return;
+            }
+            // The reusable session vanished while the dialog was open —
+            // fall through to the new-tab path.
+            CTuxLog(L"[CTux] StartAI: reusable session gone, opening new tab");
+        }
+
+        // No existing terminal (or user chose new) — open a new shell tab and
+        // type the command into it
         Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
-        args.StartingDirectory(project->FolderPath);
-        args.TabTitle(project->Name + L" [" + toolName + L"]");
-        if (!project->ColorScheme.empty())
-            args.ColorScheme(project->ColorScheme);
+        args.StartingDirectory(hstring{ projFolderPath });
+        args.TabTitle(hstring{ projName + L" [" + toolName + L"]" });
+        if (!projColorScheme.empty())
+            args.ColorScheme(hstring{ projColorScheme });
 
         const uint32_t tabsBefore = _tabs.Size();
         _OpenNewTerminalViaDropdown(args);
@@ -541,18 +595,25 @@ namespace winrt::TerminalApp::implementation
         Sidebar().RefreshLayouts();
     }
 
-    // ClickTerminal: Sidebar layout settings (⚙ button — opens layout manager dialog)
+    // ClickTerminal: Sidebar layout settings (⚙ on a layout card — edit THAT layout only)
     void TerminalPage::_SidebarEditLayoutRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
-                                                    const winrt::hstring& /*layoutId*/)
+                                                    const winrt::hstring& layoutId)
     {
-        _ShowLayoutDialog();
+        _ShowLayoutDialog(hstring{ L"edit" }, layoutId);
     }
 
-    // ClickTerminal: Layout Manager
-    void TerminalPage::_TabRowLayoutButtonClicked(const winrt::Windows::Foundation::IInspectable& /*sender*/,
-                                                   const winrt::Windows::Foundation::IInspectable& /*args*/)
+    // ClickTerminal: + button on the LAYOUTS section header — add a new layout
+    void TerminalPage::_SidebarAddLayoutRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                   const winrt::hstring& /*unused*/)
     {
-        _ShowLayoutDialog();
+        _ShowLayoutDialog(hstring{ L"add" }, hstring{});
+    }
+
+    // ClickTerminal: ⚙ button on the LAYOUTS section header — reorder layouts
+    void TerminalPage::_SidebarReorderLayoutsRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
+                                                        const winrt::hstring& /*unused*/)
+    {
+        _ShowLayoutDialog(hstring{ L"reorder" }, hstring{});
     }
 
     // ClickTerminal: Sidebar toggle
@@ -567,7 +628,7 @@ namespace winrt::TerminalApp::implementation
         Sidebar().Visibility(_sidebarVisible ? Visibility::Visible : Visibility::Collapsed);
     }
 
-    safe_void_coroutine TerminalPage::_ShowLayoutDialog()
+    safe_void_coroutine TerminalPage::_ShowLayoutDialog(winrt::hstring mode, winrt::hstring editId)
     {
         auto dialog = winrt::make<implementation::LayoutPickerDialog>();
 
@@ -628,12 +689,55 @@ namespace winrt::TerminalApp::implementation
             dialog.SetSavedLayouts(winrt::to_hstring(Json::writeString(wb, arr)));
         }
 
+        // Apply dialog mode (add / edit / reorder). Empty mode keeps legacy combined view.
+        if (!mode.empty())
+            dialog.SetMode(mode);
+        if (mode == L"edit" && !editId.empty())
+            dialog.SetEditTarget(editId);
+
         dialog.XamlRoot(XamlRoot());
         auto result = co_await dialog.ShowAsync();
 
         if (result == winrt::Windows::UI::Xaml::Controls::ContentDialogResult::None)
         {
             // Cancelled — but may have deletion or saved-apply actions
+        }
+
+        // Handle reorder result (reorder mode only): persist the new order
+        if (mode == L"reorder")
+        {
+            auto idsJson = dialog.ReorderedIdsJson();
+            if (!idsJson.empty() && result == winrt::Windows::UI::Xaml::Controls::ContentDialogResult::Primary)
+            {
+                std::vector<std::wstring> ids;
+                try
+                {
+                    Json::Value root;
+                    Json::CharReaderBuilder b;
+                    std::string errs;
+                    std::istringstream ss(winrt::to_string(idsJson));
+                    if (Json::parseFromStream(b, ss, &root, &errs) && root.isArray())
+                    {
+                        for (const auto& v : root)
+                        {
+                            auto s = v.asString();
+                            if (s.empty()) continue;
+                            int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+                            std::wstring w(static_cast<size_t>(len) - 1, L'\0');
+                            MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), len);
+                            ids.push_back(std::move(w));
+                        }
+                    }
+                }
+                catch (...) {}
+                if (!ids.empty())
+                {
+                    _layoutManager->ReorderLayouts(ids);
+                    _layoutManager->SaveLayouts();
+                    Sidebar().RefreshLayouts();
+                }
+            }
+            co_return;
         }
 
         // Handle delete (can happen before closing)
@@ -1053,6 +1157,27 @@ namespace winrt::TerminalApp::implementation
                 typeBadge.VerticalAlignment(VerticalAlignment::Bottom);
                 typeBadge.Foreground(grayBrush);
                 nameRow.Children().Append(typeBadge);
+
+                // Folder path — right of the name/badge. nameRow is a horizontal
+                // StackPanel, so CharacterEllipsis alone can't clip; shorten long
+                // paths head-first and expose the full path via tooltip.
+                if (!proj->FolderPath.empty())
+                {
+                    const std::wstring fullPath{ proj->FolderPath };
+                    std::wstring shownPath = fullPath;
+                    if (shownPath.size() > 40)
+                        shownPath = L"..." + shownPath.substr(shownPath.size() - 37);
+
+                    WUX::Controls::TextBlock pathBlock;
+                    pathBlock.Text(hstring{ shownPath });
+                    pathBlock.FontSize(10.0);
+                    pathBlock.Opacity(0.55);
+                    pathBlock.Foreground(grayBrush);
+                    pathBlock.VerticalAlignment(VerticalAlignment::Bottom);
+                    pathBlock.TextTrimming(WUX::TextTrimming::CharacterEllipsis);
+                    WUX::Controls::ToolTipService::SetToolTip(pathBlock, winrt::box_value(hstring{ fullPath }));
+                    nameRow.Children().Append(pathBlock);
+                }
             }
             WUX::Controls::Grid::SetColumn(nameRow, 0);
             headerGrid.Children().Append(nameRow);

@@ -16,6 +16,11 @@ namespace winrt::TerminalApp::implementation
         void SetProjectList(winrt::hstring const& projectsJson);
         void SetSavedLayouts(winrt::hstring const& layoutsJson);
 
+        // Mode API: "add" | "edit" | "reorder". Unset = legacy combined view.
+        void SetMode(winrt::hstring const& mode);
+        winrt::hstring Mode() { return _mode; }
+        void SetEditTarget(winrt::hstring const& layoutId);
+
         winrt::hstring LayoutName()    { return _layoutName; }
         winrt::hstring LayoutJson()    { return _layoutJson; }
         bool           ShouldSave()    { return _shouldSave; }
@@ -23,6 +28,7 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring DeleteId()      { return _deleteId; }
         winrt::hstring ApplySavedId()  { return _applySavedId; }
         winrt::hstring EditingId()     { return _editingId; }
+        winrt::hstring ReorderedIdsJson();
 
         // XAML event handlers (must be public)
         void OnShapeCellClicked(const winrt::Windows::Foundation::IInspectable& sender,
@@ -58,6 +64,9 @@ namespace winrt::TerminalApp::implementation
         uint32_t _chosenCols{ 0 };
         int      _dragSourceSlot{ -1 };
 
+        winrt::hstring _mode;               // "" (legacy) | "add" | "edit" | "reorder"
+        int            _reorderDragSource{ -1 };
+
         // Per-slot ComboBox items (index = row*cols + col)
         std::vector<winrt::Windows::UI::Xaml::Controls::ComboBox> _slotBoxes;
 
@@ -76,6 +85,16 @@ namespace winrt::TerminalApp::implementation
         winrt::hstring _BuildLayoutJson(const std::wstring& name);
         void _LoadLayoutIntoEditor(const LayoutEntry& layout);
         void _RefreshSavedList();
+        void _RefreshReorderList();
+        void _ResetEditor();
+
+        // Drag-drop for reorder-mode list items
+        void _OnReorderDragStarting(const winrt::Windows::Foundation::IInspectable& sender,
+                                    const winrt::Windows::UI::Xaml::DragStartingEventArgs& e);
+        void _OnReorderDragOver(const winrt::Windows::Foundation::IInspectable& sender,
+                                const winrt::Windows::UI::Xaml::DragEventArgs& e);
+        void _OnReorderDrop(const winrt::Windows::Foundation::IInspectable& sender,
+                            const winrt::Windows::UI::Xaml::DragEventArgs& e);
 
         void _OnTextBoxGotFocus(const winrt::Windows::Foundation::IInspectable&,
                                 const winrt::Windows::UI::Xaml::RoutedEventArgs&);

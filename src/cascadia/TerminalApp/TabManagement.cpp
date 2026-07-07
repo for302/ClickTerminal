@@ -21,6 +21,7 @@
 #include "../TerminalSettingsAppAdapterLib/TerminalSettings.h"
 
 #include <shlobj.h>
+#include <fstream>
 
 using namespace winrt;
 using namespace winrt::Windows::Foundation::Collections;
@@ -49,6 +50,19 @@ namespace winrt
 
 namespace winrt::TerminalApp::implementation
 {
+    // ClickTerminal: file-local debug log helper (internal-linkage twin of the
+    // one in CTuxIntegration.cpp — same log file, no linker clash).
+    static void CTuxLog(const std::wstring& msg)
+    {
+        wchar_t raw[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, raw)))
+        {
+            std::wstring p = std::wstring(raw) + L"\\ClickTerminal\\ctux-debug.log";
+            std::wofstream f(p, std::ios::app);
+            f << msg << L"\n";
+        }
+    }
+
     // Method Description:
     // - Open a new tab. This will create the TerminalControl hosting the
     //   terminal, and add a new Tab to our list of tabs. The method can
@@ -415,70 +429,69 @@ namespace winrt::TerminalApp::implementation
         // is running an AI session, then wait briefly so the AI tools can exit
         // gracefully. Plain terminal panes close immediately as before.
         {
+            bool sentAny = false;
+            for (auto& s : _ctuxSessions)
             {
-                bool sentAny = false;
-                for (auto& s : _ctuxSessions)
-                {
-                    if (!s.aiRunning) continue;
-                    auto sTab = s.tab.get();
-                    if (!sTab || sTab != tab) continue;
+                if (!s.aiRunning) continue;
+                auto sTab = s.tab.get();
+                if (!sTab || sTab != tab) continue;
 
-                    auto pane = s.pane.lock();
-                    if (!pane) continue;
-                    auto ctrl = pane->GetTerminalControl();
-                    if (!ctrl) continue;
+                auto pane = s.pane.lock();
+                if (!pane) continue;
+                auto ctrl = pane->GetTerminalControl();
+                if (!ctrl) continue;
 
-                    ctrl.SendInput(hstring{ L"/exit\r" });
-                    s.aiRunning = false;
-                    sentAny = true;
-                }
+                ctrl.SendInput(hstring{ L"/exit\r" });
+                CTuxLog(L"[CTux] /exit sent on tab close");
+                s.aiRunning = false;
+                sentAny = true;
+            }
 
-                if (sentAny)
-                {
-                    // Show a large centered overlay on the terminal content area
-                    Grid overlay;
-                    overlay.HorizontalAlignment(HorizontalAlignment::Stretch);
-                    overlay.VerticalAlignment(VerticalAlignment::Stretch);
-                    WUX::Media::SolidColorBrush overlayBg;
-                    overlayBg.Color({ 210, 12, 12, 22 });
-                    overlay.Background(overlayBg);
+            if (sentAny)
+            {
+                // Show a large centered overlay on the terminal content area
+                Grid overlay;
+                overlay.HorizontalAlignment(HorizontalAlignment::Stretch);
+                overlay.VerticalAlignment(VerticalAlignment::Stretch);
+                WUX::Media::SolidColorBrush overlayBg;
+                overlayBg.Color({ 210, 12, 12, 22 });
+                overlay.Background(overlayBg);
 
-                    StackPanel indicator;
-                    indicator.Orientation(Orientation::Vertical);
-                    indicator.HorizontalAlignment(HorizontalAlignment::Center);
-                    indicator.VerticalAlignment(VerticalAlignment::Center);
-                    indicator.Spacing(20.0);
+                StackPanel indicator;
+                indicator.Orientation(Orientation::Vertical);
+                indicator.HorizontalAlignment(HorizontalAlignment::Center);
+                indicator.VerticalAlignment(VerticalAlignment::Center);
+                indicator.Spacing(20.0);
 
-                    WUX::Media::SolidColorBrush textBrush;
-                    textBrush.Color({ 255, 215, 215, 230 });
+                WUX::Media::SolidColorBrush textBrush;
+                textBrush.Color({ 255, 215, 215, 230 });
 
-                    ProgressRing ring;
-                    ring.IsActive(true);
-                    ring.Width(56.0);
-                    ring.Height(56.0);
-                    ring.Foreground(textBrush);
-                    ring.HorizontalAlignment(HorizontalAlignment::Center);
+                ProgressRing ring;
+                ring.IsActive(true);
+                ring.Width(56.0);
+                ring.Height(56.0);
+                ring.Foreground(textBrush);
+                ring.HorizontalAlignment(HorizontalAlignment::Center);
 
-                    TextBlock msg;
-                    msg.Text(L"AI 종료 중...");
-                    msg.FontSize(18.0);
-                    msg.Foreground(textBrush);
-                    msg.HorizontalAlignment(HorizontalAlignment::Center);
+                TextBlock msg;
+                msg.Text(L"AI 종료 중...");
+                msg.FontSize(18.0);
+                msg.Foreground(textBrush);
+                msg.HorizontalAlignment(HorizontalAlignment::Center);
 
-                    indicator.Children().Append(ring);
-                    indicator.Children().Append(msg);
-                    overlay.Children().Append(indicator);
-                    TabContent().Children().Append(overlay);
+                indicator.Children().Append(ring);
+                indicator.Children().Append(msg);
+                overlay.Children().Append(indicator);
+                TabContent().Children().Append(overlay);
 
-                    const auto pageWeak = get_weak();
-                    co_await winrt::resume_after(std::chrono::milliseconds(2000));
-                    co_await wil::resume_foreground(Dispatcher());
-                    if (!pageWeak.get()) co_return;
+                const auto pageWeak = get_weak();
+                co_await winrt::resume_after(std::chrono::milliseconds(2500));
+                co_await wil::resume_foreground(Dispatcher());
+                if (!pageWeak.get()) co_return;
 
-                    uint32_t idx;
-                    if (TabContent().Children().IndexOf(overlay, idx))
-                        TabContent().Children().RemoveAt(idx);
-                }
+                uint32_t idx;
+                if (TabContent().Children().IndexOf(overlay, idx))
+                    TabContent().Children().RemoveAt(idx);
             }
         }
 

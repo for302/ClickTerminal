@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "LayoutManager.h"
 #include <json/json.h>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -92,6 +93,12 @@ namespace ClickTerminal
             layout.CreatedAt = buf;
         layout.LastUsedAt = buf;
 
+        // New layouts go last: Order = max existing Order + 1
+        uint32_t maxOrder = 0;
+        for (const auto& l : _layouts)
+            maxOrder = (std::max)(maxOrder, l.Order);
+        layout.Order = _layouts.empty() ? 0 : maxOrder + 1;
+
         _layouts.push_back(layout);
         return layout;
     }
@@ -128,12 +135,43 @@ namespace ClickTerminal
 
     std::vector<Layout> LayoutManager::GetAllLayouts() const
     {
-        // Return sorted by LastUsedAt descending
+        // Return sorted by Order ascending (user-defined display order)
         auto sorted = _layouts;
-        std::sort(sorted.begin(), sorted.end(), [](const Layout& a, const Layout& b) {
-            return a.LastUsedAt > b.LastUsedAt;
+        std::stable_sort(sorted.begin(), sorted.end(), [](const Layout& a, const Layout& b) {
+            return a.Order < b.Order;
         });
         return sorted;
+    }
+
+    void LayoutManager::ReorderLayouts(const std::vector<std::wstring>& orderedIds)
+    {
+        uint32_t next = 0;
+
+        // 1) Assign Order following the given id sequence
+        std::vector<bool> assigned(_layouts.size(), false);
+        for (const auto& id : orderedIds)
+        {
+            for (size_t i = 0; i < _layouts.size(); i++)
+            {
+                if (!assigned[i] && _layouts[i].Id == id)
+                {
+                    _layouts[i].Order = next++;
+                    assigned[i] = true;
+                    break;
+                }
+            }
+        }
+
+        // 2) Layouts not in the list keep their relative order and go after
+        std::vector<size_t> rest;
+        for (size_t i = 0; i < _layouts.size(); i++)
+            if (!assigned[i])
+                rest.push_back(i);
+        std::stable_sort(rest.begin(), rest.end(), [this](size_t a, size_t b) {
+            return _layouts[a].Order < _layouts[b].Order;
+        });
+        for (size_t i : rest)
+            _layouts[i].Order = next++;
     }
 
     bool LayoutManager::TouchLayout(const std::wstring& id)
@@ -166,6 +204,8 @@ namespace ClickTerminal
 
         _layouts.clear();
 
+        bool anyOrderKey = false;
+
         const auto& layouts = root["layouts"];
         for (const auto& lj : layouts)
         {
@@ -176,6 +216,9 @@ namespace ClickTerminal
             layout.Cols       = static_cast<uint32_t>(lj.get("cols", 1).asInt());
             layout.CreatedAt  = NarrowToWide(lj.get("createdAt", "").asString());
             layout.LastUsedAt = NarrowToWide(lj.get("lastUsedAt", "").asString());
+            if (lj.isMember("order"))
+                anyOrderKey = true;
+            layout.Order      = static_cast<uint32_t>(lj.get("order", 0).asUInt());
 
             // Clamp to valid range
             layout.Rows = std::clamp(layout.Rows, 1u, 3u);
@@ -191,6 +234,22 @@ namespace ClickTerminal
             }
 
             _layouts.push_back(std::move(layout));
+        }
+
+        // Migration: files written before the "order" field have no order key at all.
+        // Assign Order 0..N by LastUsedAt descending (most recent first).
+        // It will be persisted on the next SaveLayouts().
+        if (!anyOrderKey && !_layouts.empty())
+        {
+            std::vector<size_t> idx(_layouts.size());
+            for (size_t i = 0; i < idx.size(); i++)
+                idx[i] = i;
+            std::stable_sort(idx.begin(), idx.end(), [this](size_t a, size_t b) {
+                return _layouts[a].LastUsedAt > _layouts[b].LastUsedAt;
+            });
+            uint32_t next = 0;
+            for (size_t i : idx)
+                _layouts[i].Order = next++;
         }
 
         return true;
@@ -211,6 +270,7 @@ namespace ClickTerminal
             lj["cols"]       = static_cast<int>(l.Cols);
             lj["createdAt"]  = WideToNarrow(l.CreatedAt);
             lj["lastUsedAt"] = WideToNarrow(l.LastUsedAt);
+            lj["order"]      = static_cast<Json::UInt>(l.Order);
 
             Json::Value slots(Json::arrayValue);
             for (const auto& s : l.Slots)

@@ -8,10 +8,10 @@
                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                xmlns:local="using:TerminalApp"
                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-               Title="Layout Manager"
-               PrimaryButtonText="Apply"
-               SecondaryButtonText="Save"
-               CloseButtonText="Cancel"
+               Title="레이아웃 관리"
+               PrimaryButtonText="적용"
+               SecondaryButtonText="저장"
+               CloseButtonText="취소"
                DefaultButton="Primary"
                PrimaryButtonClick="OnApplyClicked"
                SecondaryButtonClick="OnSaveClicked"
@@ -34,24 +34,31 @@
     </ContentDialog.Resources>
 
     <!-- Two-column layout: left = saved list, right = editor -->
-    <Grid Width="700" MinHeight="400">
+    <Grid x:Name="RootGrid" Width="700" MinHeight="400">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="210"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition x:Name="LeftCol" Width="210"/>
+            <ColumnDefinition x:Name="SepCol" Width="Auto"/>
+            <ColumnDefinition x:Name="RightCol" Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- ===== LEFT: Saved Layouts list ===== -->
-        <ScrollViewer Grid.Column="0"
+        <ScrollViewer x:Name="SavedSection"
+                      Grid.Column="0"
                       VerticalScrollBarVisibility="Auto"
                       Padding="0,4,14,4">
             <StackPanel Spacing="8">
-                <TextBlock Text="Saved Layouts"
+                <TextBlock x:Name="SavedHeader"
+                           Text="저장된 레이아웃"
                            FontSize="13"
                            FontWeight="SemiBold"
                            Margin="0,0,0,4"/>
+                <TextBlock x:Name="ReorderHint"
+                           Text="항목을 드래그해 순서를 바꾸세요"
+                           FontSize="11"
+                           Opacity="0.6"
+                           Visibility="Collapsed"/>
                 <TextBlock x:Name="NoSavedLabel"
-                           Text="No saved layouts yet."
+                           Text="저장된 레이아웃이 없습니다."
                            FontSize="12"
                            Opacity="0.5"/>
                 <StackPanel x:Name="SavedList"
@@ -61,26 +68,28 @@
         </ScrollViewer>
 
         <!-- Vertical separator -->
-        <Border Grid.Column="1"
+        <Border x:Name="SeparatorBorder"
+                Grid.Column="1"
                 Width="1"
                 Background="{ThemeResource CardStrokeColorDefaultBrush}"
                 Margin="0,4,14,4"/>
 
         <!-- ===== RIGHT: Editor ===== -->
-        <ScrollViewer Grid.Column="2"
+        <ScrollViewer x:Name="EditorSection"
+                      Grid.Column="2"
                       VerticalScrollBarVisibility="Auto"
                       Padding="0,4,0,4">
             <StackPanel Spacing="14">
 
                 <!-- Editor mode label -->
                 <TextBlock x:Name="EditorTitle"
-                           Text="New Layout"
+                           Text="새 레이아웃"
                            FontSize="14"
                            FontWeight="SemiBold"/>
 
                 <!-- Grid Shape selector -->
                 <StackPanel>
-                    <TextBlock Text="Grid Shape"
+                    <TextBlock Text="격자 크기"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Margin="0,0,0,6"/>
@@ -128,7 +137,7 @@
                                       Click="OnShapeCellClicked" Tag="2,2"/>
                     </Grid>
                     <TextBlock x:Name="ShapeLabel"
-                               Text="Click a cell to choose shape"
+                               Text="셀을 클릭해 크기를 선택하세요"
                                FontSize="11"
                                Opacity="0.6"
                                Margin="0,6,0,0"/>
@@ -137,12 +146,12 @@
                 <!-- Slot assignment (shown after shape chosen) -->
                 <StackPanel x:Name="SlotSection"
                             Visibility="Collapsed">
-                    <TextBlock Text="Assign Projects to Slots"
+                    <TextBlock Text="슬롯에 프로젝트 지정"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Margin="0,0,0,6"/>
                     <Grid x:Name="SlotGrid"/>
-                    <TextBlock Text="Drag slots to rearrange"
+                    <TextBlock Text="슬롯을 드래그해 위치를 바꿀 수 있습니다"
                                FontSize="11"
                                Opacity="0.5"
                                Margin="0,4,0,0"/>
@@ -151,19 +160,19 @@
                 <!-- Layout name input -->
                 <StackPanel x:Name="NameSection"
                             Visibility="Collapsed">
-                    <TextBlock Text="Layout Name"
+                    <TextBlock Text="레이아웃 이름"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Margin="0,0,0,4"/>
                     <TextBox x:Name="LayoutNameBox"
-                             PlaceholderText="e.g. Dev Setup, Frontend, Backend…"
+                             PlaceholderText="예: 개발 셋업, 프론트엔드, 백엔드…"
                              MaxLength="60"/>
                 </StackPanel>
 
                 <!-- Delete button — shown in edit mode only -->
                 <Button x:Name="DeleteButton"
                         Visibility="Collapsed"
-                        Content="Delete Layout"
+                        Content="삭제"
                         Click="OnDeleteCurrentClicked"
                         Foreground="Salmon"
                         Margin="0,4,0,0"/>

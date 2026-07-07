@@ -39,20 +39,6 @@
                                    FontWeight="Bold"
                                    VerticalAlignment="Center"
                                    Margin="14,0,0,0" />
-                        <Button x:Name="LayoutButton"
-                                Width="28"
-                                Height="28"
-                                Margin="6,0,2,0"
-                                Padding="0"
-                                VerticalAlignment="Center"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                Click="OnLayoutButtonClick">
-                            <FontIcon x:Name="LayoutButtonIcon"
-                                      FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                      FontSize="13"
-                                      Glyph="&#xE8A1;" />
-                        </Button>
                         <Button x:Name="SidebarToggleButton"
                                 Width="28"
                                 Height="28"

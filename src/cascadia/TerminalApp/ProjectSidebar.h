@@ -8,7 +8,6 @@
 #include "AIToolManager.h"
 #include "CTuxTheme.h"
 #include "LayoutManager.h"
-#include <unordered_set>
 
 namespace winrt::TerminalApp::implementation
 {
@@ -30,6 +29,8 @@ namespace winrt::TerminalApp::implementation
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> CTuxThemeChanged;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> ApplyLayoutRequested;
         til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> EditLayoutRequested;
+        til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> AddLayoutRequested;
+        til::typed_event<winrt::Windows::Foundation::IInspectable, winrt::hstring> ReorderLayoutsRequested;
 
         void RefreshLayouts();
 
@@ -50,13 +51,6 @@ namespace winrt::TerminalApp::implementation
         ClickTerminal::CTuxTheme _activeTheme;
         std::wstring _activeTerminalProjectId; // projectId whose terminal tab is currently focused
 
-        // Plugin flags (loaded from CTuxSettings)
-        bool _gitPluginEnabled { false };
-        bool _portPluginEnabled{ false };
-
-        // Git Integration cache: projectId → "⎇ branch ✱N"
-        std::unordered_map<std::wstring, std::wstring> _gitStatusCache;
-
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingSettingsOp{ nullptr };
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingAddProjectOp{ nullptr };
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingEditOp{ nullptr };
@@ -69,14 +63,6 @@ namespace winrt::TerminalApp::implementation
 
         safe_void_coroutine _ShowDeleteConfirm(std::wstring projectId);
         safe_void_coroutine _ShowEditDialog(std::wstring projectId);
-
-        // Git Integration
-        static std::wstring _RunGitCommand(const std::wstring& folder, const std::wstring& args);
-        winrt::fire_and_forget _FetchGitStatusAsync(std::wstring projectId, std::wstring folderPath,
-                                                    winrt::Windows::UI::Xaml::Controls::TextBlock block);
-
-        // Port Monitor
-        static std::unordered_set<int> _GetActiveTcpPorts();
     };
 }
 

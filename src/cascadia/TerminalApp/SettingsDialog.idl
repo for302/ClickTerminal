@@ -10,8 +10,5 @@ namespace TerminalApp
         String  ProjectsConfigPath  { get; };
         String  Theme               { get; };   // "dark" | "light"
         String  SelectedThemeName   { get; };
-        String  PluginsFolder       { get; };
-        Boolean GitPluginEnabled    { get; };
-        Boolean PortPluginEnabled   { get; };
     }
 }
