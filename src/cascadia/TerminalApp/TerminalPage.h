@@ -350,32 +350,61 @@ namespace winrt::TerminalApp::implementation
         void _ApplyLayoutJson(const winrt::hstring& layoutJson);
         std::shared_ptr<Pane> _BuildPaneTreeFromLayout(uint32_t rows, uint32_t cols,
             const std::vector<ClickTerminal::LayoutSlot>& slots,
-            const std::vector<ClickTerminal::Project>& projects);
-
-        void _BuildPaneInfoOverlay(uint32_t rows, uint32_t cols,
-            const std::vector<ClickTerminal::LayoutSlot>& slots,
             const std::vector<ClickTerminal::Project>& projects,
-            winrt::TerminalApp::Tab overlayTab);
-        void _ClearPaneInfoOverlay();
-        void _RepositionPaneInfoCards();
+            std::vector<std::weak_ptr<Pane>>* slotPanes = nullptr);
 
         std::unique_ptr<ClickTerminal::LayoutManager>   _layoutManager;
 
-        // Per-pane overlay state
-        winrt::weak_ref<winrt::TerminalApp::Tab>        _layoutOverlayTab;
-        uint32_t _overlayRows{ 0 };
-        uint32_t _overlayCols{ 0 };
-        std::vector<ClickTerminal::LayoutSlot>          _overlaySlots;
-        std::vector<ClickTerminal::Project>             _overlayProjects;
+        // ClickTerminal: per-pane session tracking. A project may own many panes
+        // at once (e.g. the same project in 3 layout slots) — one record per pane.
+        struct CTuxPaneSession
+        {
+            std::wstring projectId;
+            std::wstring toolId;                 // L"" = plain terminal
+            bool aiRunning{ false };             // true → send /exit before closing
+            bool openedFromSidebar{ false };     // reuse candidate for the AI button
+            winrt::weak_ref<winrt::TerminalApp::Tab> tab;
+            std::weak_ptr<Pane> pane;
+        };
+        std::vector<CTuxPaneSession> _ctuxSessions;
 
-        // ClickTerminal: active AI session state (projectId -> weak Tab reference)
-        std::unordered_map<std::wstring, winrt::weak_ref<winrt::TerminalApp::Tab>> _aiSessionTabs;
-        // Output monitor revocation tokens per session
+        // ClickTerminal: per-tab layout overlay state (multiple layout tabs coexist)
+        struct CTuxTabOverlay
+        {
+            winrt::weak_ref<winrt::TerminalApp::Tab> tab;
+            uint32_t rows{ 0 };
+            uint32_t cols{ 0 };
+            std::vector<ClickTerminal::LayoutSlot> slots;
+            std::vector<ClickTerminal::Project> projects;
+            std::vector<std::weak_ptr<Pane>> slotPanes;  // parallel to slots
+        };
+        std::vector<CTuxTabOverlay> _ctuxTabOverlays;
+
+        // ClickTerminal: Claude context-usage monitor tokens per project
         std::unordered_map<std::wstring, winrt::event_token> _aiOutputTokens;
-        // ClickTerminal: regular terminal tabs opened per project (projectId -> weak Tab)
-        std::unordered_map<std::wstring, winrt::weak_ref<winrt::TerminalApp::Tab>> _projectTerminalTabs;
-        // ClickTerminal: overlay pane per project (projectId -> weak Pane)
-        std::unordered_map<std::wstring, std::weak_ptr<Pane>> _overlayPaneForProject;
+
+        // ClickTerminal: session/overlay helpers — defined in CTuxIntegration.cpp
+        void _CTuxPruneSessions();
+        void _CTuxRegisterSession(const std::wstring& projectId, const std::wstring& toolId,
+                                  bool aiRunning, bool openedFromSidebar,
+                                  const winrt::TerminalApp::Tab& tab, const std::shared_ptr<Pane>& pane);
+        void _CTuxMarkAIRunning(const std::shared_ptr<Pane>& pane, const std::wstring& toolId, bool running);
+        bool _CTuxProjectHasRunningAI(const std::wstring& projectId);
+        std::wstring _CTuxResolveAICommand(const ClickTerminal::Project& project) const;
+        void _CTuxSendWhenReady(const winrt::Microsoft::Terminal::Control::TermControl& ctrl, const winrt::hstring& cmd);
+        void _CTuxAttachContextMonitor(const std::wstring& projectId, const winrt::Microsoft::Terminal::Control::TermControl& ctrl);
+        CTuxTabOverlay* _CTuxFindOverlay(const winrt::TerminalApp::Tab& tab);
+        void _CTuxRemoveOverlay(const winrt::TerminalApp::Tab& tab);
+        void _CTuxRepositionOverlay(const CTuxTabOverlay& ov);
+        void _CTuxHideOverlayStrip();
+        void _CTuxOpenLayoutTab(const std::wstring& name, uint32_t rows, uint32_t cols,
+                                const std::vector<ClickTerminal::LayoutSlot>& slots,
+                                const std::vector<ClickTerminal::Project>& projects);
+        void _BuildPaneInfoOverlay(uint32_t rows, uint32_t cols,
+            const std::vector<ClickTerminal::LayoutSlot>& slots,
+            const std::vector<ClickTerminal::Project>& projects,
+            winrt::TerminalApp::Tab overlayTab,
+            const std::vector<std::weak_ptr<Pane>>& slotPanes);
 
         bool _displayingCloseDialog{ false };
         void _SettingsButtonOnClick(const IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& eventArgs);

@@ -411,24 +411,25 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
-        // ClickTerminal: if closing the layout overlay tab, send /exit to active AI panes first,
-        // then wait briefly so the AI tools can exit gracefully before the tab closes.
-        if (auto overlayTab = _layoutOverlayTab.get())
+        // ClickTerminal: before closing ANY tab, send /exit to every pane in it that
+        // is running an AI session, then wait briefly so the AI tools can exit
+        // gracefully. Plain terminal panes close immediately as before.
         {
-            if (overlayTab == tab)
             {
                 bool sentAny = false;
-                for (const auto& [projectId, weakPane] : _overlayPaneForProject)
+                for (auto& s : _ctuxSessions)
                 {
-                    // Only send /exit to panes with a tracked AI session
-                    if (_aiSessionTabs.find(projectId) == _aiSessionTabs.end()) continue;
+                    if (!s.aiRunning) continue;
+                    auto sTab = s.tab.get();
+                    if (!sTab || sTab != tab) continue;
 
-                    auto pane = weakPane.lock();
+                    auto pane = s.pane.lock();
                     if (!pane) continue;
                     auto ctrl = pane->GetTerminalControl();
                     if (!ctrl) continue;
 
                     ctrl.SendInput(hstring{ L"/exit\r" });
+                    s.aiRunning = false;
                     sentAny = true;
                 }
 
@@ -526,11 +527,34 @@ namespace winrt::TerminalApp::implementation
             _stashed.draggedTab = nullptr;
         }
 
-        // ClickTerminal: if the layout overlay tab is being closed, clear the pane info overlay
-        if (auto overlayTab = _layoutOverlayTab.get())
+        // ClickTerminal: drop this tab's overlay + session records, update sidebar state
         {
-            if (overlayTab == tab)
-                _ClearPaneInfoOverlay();
+            const bool hadOverlay = _CTuxFindOverlay(tab) != nullptr;
+            _CTuxRemoveOverlay(tab);
+            if (hadOverlay)
+                _CTuxHideOverlayStrip();
+
+            std::vector<std::wstring> affected;
+            for (auto& s : _ctuxSessions)
+                if (auto t = s.tab.get(); t && t == tab)
+                    affected.push_back(s.projectId);
+
+            _ctuxSessions.erase(
+                std::remove_if(_ctuxSessions.begin(), _ctuxSessions.end(),
+                               [&](const CTuxPaneSession& s) {
+                                   auto t = s.tab.get();
+                                   return !t || t == tab;
+                               }),
+                _ctuxSessions.end());
+
+            for (const auto& pid : affected)
+            {
+                if (!_CTuxProjectHasRunningAI(pid))
+                {
+                    _aiOutputTokens.erase(pid);
+                    Sidebar().SetSessionActive(hstring{ pid }, false);
+                }
+            }
         }
 
         _tabs.RemoveAt(tabIndex);
@@ -1119,20 +1143,17 @@ namespace winrt::TerminalApp::implementation
                 if (auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar()))
                     sidebar->SetActiveTerminalByTitle(tab.Title());
 
-                // ClickTerminal: show/hide per-pane overlay strip
-                if (auto overlayTab = _layoutOverlayTab.get())
+                // ClickTerminal: show this tab's overlay strip if it has one,
+                // otherwise hide the strip (each layout tab keeps its own state)
+                if (auto ov = _CTuxFindOverlay(tab))
                 {
-                    if (tab == overlayTab)
-                    {
-                        _RepositionPaneInfoCards();
-                        PaneInfoStrip().Visibility(Visibility::Visible);
-                        PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
-                    }
-                    else
-                    {
-                        PaneInfoStrip().Visibility(Visibility::Collapsed);
-                        PaneInfoStripRow().Height(WUX::GridLength{ 0.0, WUX::GridUnitType::Pixel });
-                    }
+                    _CTuxRepositionOverlay(*ov);
+                    PaneInfoStrip().Visibility(Visibility::Visible);
+                    PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
+                }
+                else
+                {
+                    _CTuxHideOverlayStrip();
                 }
             }
         }

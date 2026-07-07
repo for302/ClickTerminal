@@ -18,6 +18,8 @@
 #include "CTuxSettings.h"
 
 #include <ShlObj.h>
+#include <algorithm>
+#include <fstream>
 
 using namespace winrt;
 using namespace winrt::Microsoft::Terminal::Control;
@@ -50,6 +52,241 @@ namespace winrt::TerminalApp::implementation
             ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     }
 
+    // ------------------------------------------------------------------------
+    // CTux debug log helper (same file as ProjectSidebar's DbgLog)
+    // ------------------------------------------------------------------------
+    static void CTuxLog(const std::wstring& msg)
+    {
+        wchar_t raw[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, raw)))
+        {
+            std::wstring p = std::wstring(raw) + L"\\ClickTerminal\\ctux-debug.log";
+            std::wofstream f(p, std::ios::app);
+            f << msg << L"\n";
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Per-pane session tracking helpers
+    // ------------------------------------------------------------------------
+
+    // Drop records whose pane or tab has been destroyed.
+    void TerminalPage::_CTuxPruneSessions()
+    {
+        _ctuxSessions.erase(
+            std::remove_if(_ctuxSessions.begin(), _ctuxSessions.end(),
+                           [](const CTuxPaneSession& s) { return s.pane.expired() || !s.tab.get(); }),
+            _ctuxSessions.end());
+    }
+
+    void TerminalPage::_CTuxRegisterSession(const std::wstring& projectId, const std::wstring& toolId,
+                                            bool aiRunning, bool openedFromSidebar,
+                                            const winrt::TerminalApp::Tab& tab, const std::shared_ptr<Pane>& pane)
+    {
+        if (!pane) return;
+        _CTuxPruneSessions();
+        // Reuse an existing record for the same pane
+        for (auto& s : _ctuxSessions)
+        {
+            if (auto p = s.pane.lock(); p && p == pane)
+            {
+                s.projectId = projectId;
+                if (!toolId.empty()) s.toolId = toolId;
+                s.aiRunning = s.aiRunning || aiRunning;
+                s.openedFromSidebar = s.openedFromSidebar || openedFromSidebar;
+                s.tab = winrt::make_weak(tab);
+                return;
+            }
+        }
+        CTuxPaneSession rec;
+        rec.projectId = projectId;
+        rec.toolId = toolId;
+        rec.aiRunning = aiRunning;
+        rec.openedFromSidebar = openedFromSidebar;
+        rec.tab = winrt::make_weak(tab);
+        rec.pane = pane;
+        _ctuxSessions.push_back(std::move(rec));
+    }
+
+    void TerminalPage::_CTuxMarkAIRunning(const std::shared_ptr<Pane>& pane, const std::wstring& toolId, bool running)
+    {
+        for (auto& s : _ctuxSessions)
+        {
+            if (auto p = s.pane.lock(); p && p == pane)
+            {
+                s.aiRunning = running;
+                if (!toolId.empty()) s.toolId = toolId;
+                return;
+            }
+        }
+    }
+
+    bool TerminalPage::_CTuxProjectHasRunningAI(const std::wstring& projectId)
+    {
+        for (auto& s : _ctuxSessions)
+            if (s.aiRunning && s.projectId == projectId && !s.pane.expired() && s.tab.get())
+                return true;
+        return false;
+    }
+
+    // Resolve the command used to launch the project's default AI tool.
+    // The user-configured "AI Start Command" always wins; fall back to the
+    // AIToolManager-assembled command line, then to the bare tool name.
+    std::wstring TerminalPage::_CTuxResolveAICommand(const ClickTerminal::Project& project) const
+    {
+        const auto& tool = project.AIConfig.DefaultTool;
+        if (tool.empty()) return {};
+
+        std::wstring startCmd;
+        if (tool == L"claude")      startCmd = project.AIConfig.Claude.StartCommand;
+        else if (tool == L"codex")  startCmd = project.AIConfig.Codex.StartCommand;
+        else if (tool == L"gemini") startCmd = project.AIConfig.Gemini.StartCommand;
+        if (!startCmd.empty())
+        {
+            CTuxLog(L"[CTux] resolve cmd (StartCommand): " + startCmd);
+            return startCmd;
+        }
+
+        ClickTerminal::AITool t = ClickTerminal::AITool::Claude;
+        if (tool == L"codex")       t = ClickTerminal::AITool::Codex;
+        else if (tool == L"gemini") t = ClickTerminal::AITool::Gemini;
+
+        ClickTerminal::AIToolManager aimgr;
+        auto launchCmd = aimgr.GetLaunchCommand(project, t, false);
+        auto cmdLine = launchCmd.ToCommandLine();
+        if (!cmdLine.empty())
+        {
+            CTuxLog(L"[CTux] resolve cmd (assembled): " + cmdLine);
+            return cmdLine;
+        }
+        return std::wstring{ tool };
+    }
+
+    // Send input once the control's connection is ready. Fixes the race where
+    // SendInput on a freshly created (unfocused) pane was silently dropped.
+    void TerminalPage::_CTuxSendWhenReady(const winrt::Microsoft::Terminal::Control::TermControl& ctrl,
+                                          const winrt::hstring& cmd)
+    {
+        if (!ctrl || cmd.empty()) return;
+
+        using ConnState = winrt::Microsoft::Terminal::TerminalConnection::ConnectionState;
+
+        if (ctrl.ConnectionState() == ConnState::Connected)
+        {
+            ctrl.SendInput(cmd);
+            CTuxLog(L"[CTux] SendWhenReady: sent immediately");
+            return;
+        }
+
+        CTuxLog(L"[CTux] SendWhenReady: queued (connection not ready)");
+
+        auto sent = std::make_shared<bool>(false);
+        auto connToken = std::make_shared<winrt::event_token>();
+
+        *connToken = ctrl.ConnectionStateChanged(
+            [sent, connToken, cmd](const winrt::Windows::Foundation::IInspectable& sender,
+                                   const winrt::Windows::Foundation::IInspectable&) {
+                auto c = sender.try_as<winrt::Microsoft::Terminal::Control::TermControl>();
+                if (!c) return;
+                if (*sent)
+                {
+                    c.ConnectionStateChanged(*connToken);
+                    return;
+                }
+                if (c.ConnectionState() == ConnState::Connected)
+                {
+                    *sent = true;
+                    c.SendInput(cmd);
+                    c.ConnectionStateChanged(*connToken);
+                    CTuxLog(L"[CTux] SendWhenReady: sent on ConnectionStateChanged");
+                }
+            });
+
+        // Safety net: force-send once after 5 seconds if the event never fired.
+        auto weakCtrl = winrt::make_weak(ctrl);
+        WUX::DispatcherTimer timer;
+        timer.Interval(std::chrono::seconds(5));
+        auto tickToken = std::make_shared<winrt::event_token>();
+        *tickToken = timer.Tick(
+            [timer, tickToken, weakCtrl, sent, connToken, cmd](const winrt::Windows::Foundation::IInspectable&,
+                                                               const winrt::Windows::Foundation::IInspectable&) {
+                timer.Stop();
+                timer.Tick(*tickToken); // self-revoke breaks the ref cycle
+                if (*sent) return;
+                *sent = true;
+                if (auto c = weakCtrl.get())
+                {
+                    c.SendInput(cmd);
+                    c.ConnectionStateChanged(*connToken);
+                    CTuxLog(L"[CTux] SendWhenReady: timeout fallback fired");
+                }
+            });
+        timer.Start();
+    }
+
+    // Subscribe to the connection output to track Claude context usage.
+    void TerminalPage::_CTuxAttachContextMonitor(const std::wstring& projectId,
+                                                 const winrt::Microsoft::Terminal::Control::TermControl& ctrl)
+    {
+        if (!ctrl) return;
+        if (_aiOutputTokens.count(projectId)) return; // already attached
+
+        auto conn = ctrl.Connection();
+        if (!conn) return;
+
+        auto pid = projectId;
+        auto weakPage = get_weak();
+
+        auto token = conn.TerminalOutput([weakPage, pid](const winrt::array_view<const char16_t> data) {
+            if (data.empty()) return;
+
+            std::wstring ws(data.begin(), data.end());
+            std::wstring clean;
+            clean.reserve(ws.size());
+            bool inEsc = false;
+            for (wchar_t c : ws)
+            {
+                if (c == L'\x1b') { inEsc = true; continue; }
+                if (inEsc) { if ((c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z')) inEsc = false; continue; }
+                clean += c;
+            }
+
+            if (clean.find(L"input_tokens") == std::wstring::npos) return;
+
+            auto pos = clean.find(L"\"input_tokens\"");
+            if (pos == std::wstring::npos) return;
+
+            auto start = clean.rfind(L'{', pos);
+            if (start == std::wstring::npos) return;
+            auto end = clean.find(L'}', pos);
+            if (end == std::wstring::npos) return;
+
+            std::wstring json = clean.substr(start, end - start + 1);
+
+            auto extractNum = [&](const std::wstring& key) -> uint32_t {
+                auto k = json.find(key);
+                if (k == std::wstring::npos) return 0;
+                k += key.size();
+                while (k < json.size() && !iswdigit(json[k])) ++k;
+                uint32_t val = 0;
+                while (k < json.size() && iswdigit(json[k])) { val = val * 10 + (json[k] - L'0'); ++k; }
+                return val;
+            };
+
+            uint32_t inputTokens  = extractNum(L"\"input_tokens\":");
+            uint32_t cacheRead    = extractNum(L"\"cache_read_input_tokens\":");
+            uint32_t outputTokens = extractNum(L"\"output_tokens\":");
+            uint32_t used = inputTokens + cacheRead + outputTokens;
+
+            if (used == 0) return;
+
+            if (auto page = weakPage.get())
+                page->Sidebar().UpdateContextUsage(hstring{ pid }, used, 200000);
+        });
+
+        _aiOutputTokens[projectId] = token;
+    }
+
     // ClickTerminal: Open a terminal tab in the project's folder
     void TerminalPage::_SidebarOpenTerminalRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                       const winrt::hstring& projectId)
@@ -63,48 +300,23 @@ namespace winrt::TerminalApp::implementation
 
         auto id = std::wstring{ projectId };
 
-        // Check if an overlay pane is open for this project
-        {
-            auto oit = _overlayPaneForProject.find(id);
-            if (oit != _overlayPaneForProject.end())
-            {
-                if (auto pane = oit->second.lock())
-                {
-                    if (auto overlayTab = _layoutOverlayTab.get())
-                    {
-                        uint32_t idx{};
-                        if (_tabs.IndexOf(overlayTab, idx))
-                        {
-                            if (auto tabImpl = _GetTabImpl(overlayTab))
-                                if (auto pid = pane->Id())
-                                    tabImpl->FocusPane(pid.value());
-                            _SelectTab(idx);
-                            pm.TouchProject(id);
-                            return;
-                        }
-                    }
-                }
-                _overlayPaneForProject.erase(oit);
-            }
-        }
+        _CTuxPruneSessions();
 
-        // Check if we previously opened a regular tab for this project
+        // If we already opened a terminal for this project (tab or layout pane), focus it.
+        for (auto& s : _ctuxSessions)
         {
-            auto tit = _projectTerminalTabs.find(id);
-            if (tit != _projectTerminalTabs.end())
-            {
-                if (auto existingTab = tit->second.get())
-                {
-                    uint32_t idx{};
-                    if (_tabs.IndexOf(existingTab, idx))
-                    {
-                        _SelectTab(idx);
-                        pm.TouchProject(id);
-                        return;
-                    }
-                }
-                _projectTerminalTabs.erase(tit);
-            }
+            if (s.projectId != id) continue;
+            auto tab = s.tab.get();
+            auto pane = s.pane.lock();
+            if (!tab || !pane) continue;
+            uint32_t idx{};
+            if (!_tabs.IndexOf(tab, idx)) continue;
+            if (auto tabImpl = _GetTabImpl(tab))
+                if (auto pid = pane->Id())
+                    tabImpl->FocusPane(pid.value());
+            _SelectTab(idx);
+            pm.TouchProject(id);
+            return;
         }
 
         // Open new terminal tab
@@ -122,36 +334,28 @@ namespace winrt::TerminalApp::implementation
 
         if (_tabs.Size() > tabsBefore)
         {
-            _projectTerminalTabs[id] = winrt::make_weak(_tabs.GetAt(_tabs.Size() - 1));
-
-            if (project->AIConfig.AutoStartAI && !project->AIConfig.DefaultTool.empty())
+            auto newTab = _tabs.GetAt(_tabs.Size() - 1);
+            std::shared_ptr<Pane> pane;
+            winrt::Microsoft::Terminal::Control::TermControl ctrl{ nullptr };
+            if (auto tabImpl = _GetTabImpl(newTab))
             {
-                std::wstring launchCmd;
-                const auto& tool = project->AIConfig.DefaultTool;
-                if (tool == L"claude")       launchCmd = project->AIConfig.Claude.StartCommand.empty() ? L"claude" : project->AIConfig.Claude.StartCommand;
-                else if (tool == L"codex")   launchCmd = project->AIConfig.Codex.StartCommand.empty()  ? L"codex"  : project->AIConfig.Codex.StartCommand;
-                else if (tool == L"gemini")  launchCmd = project->AIConfig.Gemini.StartCommand.empty() ? L"gemini" : project->AIConfig.Gemini.StartCommand;
+                pane = tabImpl->GetActivePane();
+                ctrl = tabImpl->GetActiveTerminalControl();
+            }
+            if (pane)
+                _CTuxRegisterSession(id, L"", false, true, newTab, pane);
 
+            // AutoStartAI: launch the default AI tool in this fresh terminal
+            if (project->AIConfig.AutoStartAI && !project->AIConfig.DefaultTool.empty() && ctrl)
+            {
+                auto launchCmd = _CTuxResolveAICommand(*project);
                 if (!launchCmd.empty())
                 {
-                    auto weakTab = _projectTerminalTabs[id];
-                    Dispatcher().RunAsync(
-                        winrt::Windows::UI::Core::CoreDispatcherPriority::Normal,
-                        [weakTab, launchCmd]() {
-                            if (auto tab = weakTab.get())
-                            {
-                                if (auto tabImpl = TerminalPage::_GetTabImpl(tab))
-                                {
-                                    if (auto pane = tabImpl->GetActivePane())
-                                    {
-                                        if (auto ctrl = pane->GetTerminalControl())
-                                        {
-                                            ctrl.SendInput(winrt::hstring{ launchCmd + L"\r" });
-                                        }
-                                    }
-                                }
-                            }
-                        });
+                    _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
+                    _CTuxMarkAIRunning(pane, std::wstring{ project->AIConfig.DefaultTool }, true);
+                    if (project->AIConfig.DefaultTool == L"claude")
+                        _CTuxAttachContextMonitor(id, ctrl);
+                    Sidebar().SetSessionActive(projectId, true);
                 }
             }
         }
@@ -159,7 +363,8 @@ namespace winrt::TerminalApp::implementation
         pm.TouchProject(id);
     }
 
-    // ClickTerminal: Launch AI tool — sends command to existing terminal, or opens new tab
+    // ClickTerminal: Launch AI tool — reuse an idle project terminal, or open a new tab.
+    // Always launches with the resolved AI Start Command (user setting first).
     void TerminalPage::_SidebarStartAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                  const winrt::hstring& projectId)
     {
@@ -171,89 +376,55 @@ namespace winrt::TerminalApp::implementation
         if (!project) return;
 
         auto id = std::wstring{ projectId };
-        const auto& toolName = project->AIConfig.DefaultTool;
+        const auto toolName = std::wstring{ project->AIConfig.DefaultTool };
+        if (toolName.empty()) return;
+
+        _CTuxPruneSessions();
 
         // If AI is already running for this project, show notice and return
+        if (_CTuxProjectHasRunningAI(id))
         {
-            auto it = _aiSessionTabs.find(id);
-            if (it != _aiSessionTabs.end() && it->second.get())
-            {
-                _ShowControlNoticeDialog(
-                    hstring{ L"AI 이미 실행 중" },
-                    hstring{ L"이미 해당 프로젝트에서 " + toolName + L"가 시작 되었습니다." });
-                return;
-            }
+            _ShowControlNoticeDialog(
+                hstring{ L"AI 이미 실행 중" },
+                hstring{ L"이미 해당 프로젝트에서 " + toolName + L"가 시작 되었습니다." });
+            return;
         }
 
-        ClickTerminal::AITool tool = ClickTerminal::AITool::Claude;
-        if (toolName == L"codex")       tool = ClickTerminal::AITool::Codex;
-        else if (toolName == L"gemini") tool = ClickTerminal::AITool::Gemini;
+        auto launchCmd = _CTuxResolveAICommand(*project);
+        if (launchCmd.empty()) return;
 
-        ClickTerminal::AIToolManager aimgr;
-        auto launchCmd = aimgr.GetLaunchCommand(*project, tool, false);
-        auto cmdLine = launchCmd.ToCommandLine();
-
-        // Try to find an existing terminal for this project and type the command into it
-        winrt::Microsoft::Terminal::Control::TermControl existingCtrl{ nullptr };
-        winrt::TerminalApp::Tab existingTab{ nullptr };
-
-        // 1. Check overlay pane
+        // Reuse an existing sidebar-opened terminal that has no AI running
+        for (auto& s : _ctuxSessions)
         {
-            auto oit = _overlayPaneForProject.find(id);
-            if (oit != _overlayPaneForProject.end())
-            {
-                if (auto pane = oit->second.lock())
-                {
-                    if (auto overlayTab = _layoutOverlayTab.get())
-                    {
-                        uint32_t idx{};
-                        if (_tabs.IndexOf(overlayTab, idx))
-                        {
-                            if (auto tabImpl = _GetTabImpl(overlayTab))
-                                if (auto pid = pane->Id())
-                                    tabImpl->FocusPane(pid.value());
-                            _SelectTab(idx);
-                            existingCtrl = pane->GetTerminalControl();
-                            existingTab  = overlayTab;
-                        }
-                    }
-                }
-            }
-        }
+            if (s.projectId != id || s.aiRunning || !s.openedFromSidebar) continue;
+            auto tab = s.tab.get();
+            auto pane = s.pane.lock();
+            if (!tab || !pane) continue;
+            uint32_t idx{};
+            if (!_tabs.IndexOf(tab, idx)) continue;
+            auto ctrl = pane->GetTerminalControl();
+            if (!ctrl) continue;
 
-        // 2. Check regular project terminal tab
-        if (!existingCtrl)
-        {
-            auto tit = _projectTerminalTabs.find(id);
-            if (tit != _projectTerminalTabs.end())
-            {
-                if (auto tab = tit->second.get())
-                {
-                    uint32_t idx{};
-                    if (_tabs.IndexOf(tab, idx))
-                    {
-                        _SelectTab(idx);
-                        if (auto tabImpl = _GetTabImpl(tab))
-                            existingCtrl = tabImpl->GetActiveTerminalControl();
-                        existingTab = tab;
-                    }
-                }
-            }
-        }
+            if (auto tabImpl = _GetTabImpl(tab))
+                if (auto paneId = pane->Id())
+                    tabImpl->FocusPane(paneId.value());
+            _SelectTab(idx);
 
-        if (existingCtrl)
-        {
-            existingCtrl.SendInput(hstring{ cmdLine + L"\r" });
-            _aiSessionTabs[id] = winrt::make_weak(existingTab);
+            _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
+            s.aiRunning = true;
+            s.toolId = toolName;
+            if (toolName == L"claude")
+                _CTuxAttachContextMonitor(id, ctrl);
             Sidebar().SetSessionActive(projectId, true);
             return;
         }
 
-        // No existing terminal — open a new tab with the AI tool running
+        // No existing terminal — open a new shell tab and type the command into it
         Microsoft::Terminal::Settings::Model::NewTerminalArgs args;
         args.StartingDirectory(project->FolderPath);
-        args.Commandline(cmdLine);
         args.TabTitle(project->Name + L" [" + toolName + L"]");
+        if (!project->ColorScheme.empty())
+            args.ColorScheme(project->ColorScheme);
 
         const uint32_t tabsBefore = _tabs.Size();
         _OpenNewTerminalViaDropdown(args);
@@ -261,110 +432,48 @@ namespace winrt::TerminalApp::implementation
         if (_tabs.Size() > tabsBefore)
         {
             auto newTab = _tabs.GetAt(_tabs.Size() - 1);
-            _aiSessionTabs[id] = winrt::make_weak(newTab);
-
-            // Subscribe to TerminalOutput to track context usage (Claude only)
-            if (tool == ClickTerminal::AITool::Claude)
+            std::shared_ptr<Pane> pane;
+            winrt::Microsoft::Terminal::Control::TermControl ctrl{ nullptr };
+            if (auto tabImpl = _GetTabImpl(newTab))
             {
-                if (auto tabImpl = _GetTabImpl(newTab))
-                {
-                    auto ctrl = tabImpl->GetActiveTerminalControl();
-                    if (ctrl)
-                    {
-                        auto conn = ctrl.Connection();
-                        if (conn)
-                        {
-                            auto pid = id;
-                            auto weakPage = get_weak();
-
-                            auto token = conn.TerminalOutput([weakPage, pid](const winrt::array_view<const char16_t> data) {
-                                if (data.empty()) return;
-
-                                std::wstring ws(data.begin(), data.end());
-                                std::wstring clean;
-                                clean.reserve(ws.size());
-                                bool inEsc = false;
-                                for (wchar_t c : ws)
-                                {
-                                    if (c == L'\x1b') { inEsc = true; continue; }
-                                    if (inEsc) { if ((c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z')) inEsc = false; continue; }
-                                    clean += c;
-                                }
-
-                                if (clean.find(L"input_tokens") == std::wstring::npos) return;
-
-                                auto pos = clean.find(L"\"input_tokens\"");
-                                if (pos == std::wstring::npos) return;
-
-                                auto start = clean.rfind(L'{', pos);
-                                if (start == std::wstring::npos) return;
-                                auto end = clean.find(L'}', pos);
-                                if (end == std::wstring::npos) return;
-
-                                std::wstring json = clean.substr(start, end - start + 1);
-
-                                auto extractNum = [&](const std::wstring& key) -> uint32_t {
-                                    auto k = json.find(key);
-                                    if (k == std::wstring::npos) return 0;
-                                    k += key.size();
-                                    while (k < json.size() && !iswdigit(json[k])) ++k;
-                                    uint32_t val = 0;
-                                    while (k < json.size() && iswdigit(json[k])) { val = val * 10 + (json[k] - L'0'); ++k; }
-                                    return val;
-                                };
-
-                                uint32_t inputTokens  = extractNum(L"\"input_tokens\":");
-                                uint32_t cacheRead    = extractNum(L"\"cache_read_input_tokens\":");
-                                uint32_t outputTokens = extractNum(L"\"output_tokens\":");
-                                uint32_t used = inputTokens + cacheRead + outputTokens;
-
-                                if (used == 0) return;
-
-                                if (auto page = weakPage.get())
-                                    page->Sidebar().UpdateContextUsage(hstring{ pid }, used, 200000);
-                            });
-
-                            _aiOutputTokens[id] = token;
-                        }
-                    }
-                }
+                pane = tabImpl->GetActivePane();
+                ctrl = tabImpl->GetActiveTerminalControl();
+            }
+            if (pane)
+                _CTuxRegisterSession(id, toolName, true, true, newTab, pane);
+            if (ctrl)
+            {
+                _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
+                if (toolName == L"claude")
+                    _CTuxAttachContextMonitor(id, ctrl);
             }
         }
 
         Sidebar().SetSessionActive(projectId, true);
     }
 
-    // ClickTerminal: Stop AI session — send /exit to the terminal, clean up
+    // ClickTerminal: Stop AI — send /exit to every running AI pane of the project
     void TerminalPage::_SidebarStopAIRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                 const winrt::hstring& projectId)
     {
         auto id = std::wstring{ projectId };
 
-        // Send /exit to the AI session's terminal
-        auto it = _aiSessionTabs.find(id);
-        if (it != _aiSessionTabs.end())
+        for (auto& s : _ctuxSessions)
         {
-            if (auto tab = it->second.get())
+            if (!s.aiRunning || s.projectId != id) continue;
+            if (auto pane = s.pane.lock())
             {
-                if (auto tabImpl = _GetTabImpl(tab))
+                if (auto ctrl = pane->GetTerminalControl())
                 {
-                    auto ctrl = tabImpl->GetActiveTerminalControl();
-                    if (ctrl)
-                    {
-                        ctrl.SendInput(L"/exit\r\n");
-                    }
+                    ctrl.SendInput(hstring{ L"/exit\r" });
+                    CTuxLog(L"[CTux] StopAI: /exit sent");
                 }
             }
-            _aiSessionTabs.erase(it);
+            s.aiRunning = false;
         }
 
-        // Revoke output monitoring token
-        auto tokIt = _aiOutputTokens.find(id);
-        if (tokIt != _aiOutputTokens.end())
-        {
-            // Token revocation: the connection may already be gone, just erase
-            _aiOutputTokens.erase(tokIt);
-        }
+        // Revoke output monitoring token (connection may already be gone, just erase)
+        _aiOutputTokens.erase(id);
 
         Sidebar().SetSessionActive(projectId, false);
     }
@@ -392,6 +501,29 @@ namespace winrt::TerminalApp::implementation
         winrt::get_self<implementation::ProjectSidebar>(Sidebar())->RefreshTheme();
     }
 
+    // ClickTerminal: open a new tab hosting the given layout (pane tree + overlay + AI autostart)
+    void TerminalPage::_CTuxOpenLayoutTab(const std::wstring& name, uint32_t rows, uint32_t cols,
+                                          const std::vector<ClickTerminal::LayoutSlot>& slots,
+                                          const std::vector<ClickTerminal::Project>& projects)
+    {
+        std::vector<std::weak_ptr<Pane>> slotPanes;
+        auto paneTree = _BuildPaneTreeFromLayout(rows, cols, slots, projects, &slotPanes);
+        if (!paneTree) return;
+
+        auto newTab = _CreateNewTabFromPane(paneTree);
+        if (!newTab) return;
+
+        if (auto tabImpl = _GetTabImpl(newTab))
+        {
+            if (!name.empty())
+                tabImpl->SetTabText(hstring{ name });
+            if (rows * cols > 1)
+                tabImpl->SetLayoutIcon();
+        }
+        if (rows * cols > 1)
+            _BuildPaneInfoOverlay(rows, cols, slots, projects, newTab, slotPanes);
+    }
+
     // ClickTerminal: Sidebar layout apply (▶ button on a saved layout card)
     void TerminalPage::_SidebarApplyLayoutRequested(const winrt::Windows::Foundation::IInspectable& /*sender*/,
                                                      const winrt::hstring& layoutId)
@@ -403,21 +535,7 @@ namespace winrt::TerminalApp::implementation
         if (!sidebar) return;
 
         auto projects = sidebar->ProjectManagerRef().GetAllProjects();
-        auto paneTree = _BuildPaneTreeFromLayout(l->Rows, l->Cols, l->Slots, projects);
-        if (!paneTree) return;
-
-        auto newTab = _CreateNewTabFromPane(paneTree);
-        if (newTab)
-        {
-            if (auto tabImpl = _GetTabImpl(newTab))
-            {
-                tabImpl->SetTabText(hstring{ l->Name });
-                if (l->Rows * l->Cols > 1)
-                    tabImpl->SetLayoutIcon();
-            }
-            if (l->Rows * l->Cols > 1)
-                _BuildPaneInfoOverlay(l->Rows, l->Cols, l->Slots, projects, newTab);
-        }
+        _CTuxOpenLayoutTab(l->Name, l->Rows, l->Cols, l->Slots, projects);
         _layoutManager->TouchLayout(l->Id);
         _layoutManager->SaveLayouts();
         Sidebar().RefreshLayouts();
@@ -534,25 +652,10 @@ namespace winrt::TerminalApp::implementation
                 if (auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar()))
                 {
                     auto projects = sidebar->ProjectManagerRef().GetAllProjects();
-                    auto paneTree = _BuildPaneTreeFromLayout(l->Rows, l->Cols, l->Slots, projects);
-                    if (paneTree)
-                    {
-                        auto newTab = _CreateNewTabFromPane(paneTree);
-                        if (newTab)
-                        {
-                            if (auto tabImpl = _GetTabImpl(newTab))
-                            {
-                                tabImpl->SetTabText(hstring{ l->Name });
-                                if (l->Rows * l->Cols > 1)
-                                    tabImpl->SetLayoutIcon();
-                            }
-                            if (l->Rows * l->Cols > 1)
-                                _BuildPaneInfoOverlay(l->Rows, l->Cols, l->Slots, projects, newTab);
-                        }
-                        _layoutManager->TouchLayout(l->Id);
-                        _layoutManager->SaveLayouts();
-                        Sidebar().RefreshLayouts();
-                    }
+                    _CTuxOpenLayoutTab(l->Name, l->Rows, l->Cols, l->Slots, projects);
+                    _layoutManager->TouchLayout(l->Id);
+                    _layoutManager->SaveLayouts();
+                    Sidebar().RefreshLayouts();
                 }
             }
             co_return;
@@ -652,23 +755,7 @@ namespace winrt::TerminalApp::implementation
             if (auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar()))
                 projects = sidebar->ProjectManagerRef().GetAllProjects();
 
-            auto paneTree = _BuildPaneTreeFromLayout(rows, cols, slots, projects);
-            if (paneTree)
-            {
-                auto newTab = _CreateNewTabFromPane(paneTree);
-                if (newTab)
-                {
-                    if (auto tabImpl = _GetTabImpl(newTab))
-                    {
-                        if (!layoutName.empty())
-                            tabImpl->SetTabText(hstring{ layoutName });
-                        if (rows * cols > 1)
-                            tabImpl->SetLayoutIcon();
-                    }
-                    if (rows * cols > 1)
-                        _BuildPaneInfoOverlay(rows, cols, slots, projects, newTab);
-                }
-            }
+            _CTuxOpenLayoutTab(layoutName, rows, cols, slots, projects);
         }
         catch (...) {}
     }
@@ -676,7 +763,8 @@ namespace winrt::TerminalApp::implementation
     std::shared_ptr<Pane> TerminalPage::_BuildPaneTreeFromLayout(
         uint32_t rows, uint32_t cols,
         const std::vector<ClickTerminal::LayoutSlot>& slots,
-        const std::vector<ClickTerminal::Project>& projects)
+        const std::vector<ClickTerminal::Project>& projects,
+        std::vector<std::weak_ptr<Pane>>* slotPanes)
     {
         if (rows == 0 || cols == 0) return nullptr;
 
@@ -723,6 +811,22 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        // Report each slot's leaf pane back to the caller (parallel to `slots`).
+        // This replaces the old projectId-keyed map that collapsed duplicate
+        // projects onto a single pane (last-write-wins bug).
+        if (slotPanes)
+        {
+            slotPanes->clear();
+            slotPanes->reserve(slots.size());
+            for (const auto& s : slots)
+            {
+                if (s.Row < rows && s.Col < cols)
+                    slotPanes->push_back(panes[s.Row][s.Col]);
+                else
+                    slotPanes->push_back({});
+            }
+        }
+
         // Column-first tree assembly
         // Step 1: build each column as vertical chain
         // SplitState::Vertical = top/bottom (rows), SplitState::Horizontal = left/right (columns)
@@ -763,113 +867,116 @@ namespace winrt::TerminalApp::implementation
     // Per-pane project info overlay
     // -----------------------------------------------------------------------
 
-    void TerminalPage::_BuildPaneInfoOverlay(
-        uint32_t rows, uint32_t cols,
-        const std::vector<ClickTerminal::LayoutSlot>& slots,
-        const std::vector<ClickTerminal::Project>& projects,
-        winrt::TerminalApp::Tab overlayTab)
+    // ClickTerminal: overlay bookkeeping — one CTuxTabOverlay per layout tab, so
+    // several layout tabs can coexist without clobbering each other's title strip.
+    TerminalPage::CTuxTabOverlay* TerminalPage::_CTuxFindOverlay(const winrt::TerminalApp::Tab& tab)
     {
-        _ClearPaneInfoOverlay();
-
-        _overlayRows    = rows;
-        _overlayCols    = cols;
-        _overlaySlots   = slots;
-        _overlayProjects = projects;
-        _layoutOverlayTab = winrt::make_weak(overlayTab);
-
-        // Build projectId → pane map (WalkTree visits column-major: leaf index = col*rows+row)
-        _overlayPaneForProject.clear();
-        if (auto tabImpl = _GetTabImpl(overlayTab))
-        {
-            if (auto root = tabImpl->GetRootPane())
-            {
-                std::vector<std::shared_ptr<Pane>> leafPanes;
-                root->WalkTree([&](const std::shared_ptr<Pane>& pane) {
-                    if (pane->GetContent())
-                        leafPanes.push_back(pane);
-                });
-                for (const auto& slot : slots)
-                {
-                    if (slot.ProjectId.empty()) continue;
-                    const uint32_t idx = slot.Col * rows + slot.Row;
-                    if (idx < static_cast<uint32_t>(leafPanes.size()))
-                        _overlayPaneForProject[slot.ProjectId] = leafPanes[idx];
-                }
-            }
-        }
-
-        _RepositionPaneInfoCards();
-
-        PaneInfoStrip().Visibility(Visibility::Visible);
-        PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
-
-        // Auto-send AI start commands for overlay slots where AutoStartAI is enabled.
-        // Uses Low priority RunAsync so all panes finish initializing before input is sent.
-        auto overlayTabWeak = winrt::make_weak(overlayTab);
-        Dispatcher().RunAsync(
-            winrt::Windows::UI::Core::CoreDispatcherPriority::Low,
-            [weakThis{ get_weak() }, overlayTabWeak]() {
-                auto page{ weakThis.get() };
-                if (!page) return;
-                auto tab = overlayTabWeak.get();
-                if (!tab) return;
-
-                for (const auto& slot : page->_overlaySlots)
-                {
-                    if (slot.ProjectId.empty()) continue;
-
-                    const ClickTerminal::Project* proj = nullptr;
-                    for (const auto& p : page->_overlayProjects)
-                        if (p.Id == slot.ProjectId) { proj = &p; break; }
-                    if (!proj || !proj->AIConfig.AutoStartAI || proj->AIConfig.DefaultTool.empty()) continue;
-
-                    auto oit = page->_overlayPaneForProject.find(slot.ProjectId);
-                    if (oit == page->_overlayPaneForProject.end()) continue;
-                    auto pane = oit->second.lock();
-                    if (!pane) continue;
-                    auto ctrl = pane->GetTerminalControl();
-                    if (!ctrl) continue;
-
-                    const auto& tool = proj->AIConfig.DefaultTool;
-                    std::wstring launchCmd;
-                    if (tool == L"claude")       launchCmd = proj->AIConfig.Claude.StartCommand.empty()  ? L"claude"  : proj->AIConfig.Claude.StartCommand;
-                    else if (tool == L"codex")   launchCmd = proj->AIConfig.Codex.StartCommand.empty()   ? L"codex"   : proj->AIConfig.Codex.StartCommand;
-                    else if (tool == L"gemini")  launchCmd = proj->AIConfig.Gemini.StartCommand.empty()  ? L"gemini"  : proj->AIConfig.Gemini.StartCommand;
-                    if (launchCmd.empty()) continue;
-
-                    ctrl.SendInput(hstring{ launchCmd + L"\r" });
-                    page->_aiSessionTabs[slot.ProjectId] = winrt::make_weak(tab);
-                    page->Sidebar().SetSessionActive(hstring{ slot.ProjectId }, true);
-                }
-            });
+        // prune dead entries first
+        _ctuxTabOverlays.erase(
+            std::remove_if(_ctuxTabOverlays.begin(), _ctuxTabOverlays.end(),
+                           [](const CTuxTabOverlay& o) { return !o.tab.get(); }),
+            _ctuxTabOverlays.end());
+        for (auto& o : _ctuxTabOverlays)
+            if (o.tab.get() == tab)
+                return &o;
+        return nullptr;
     }
 
-    void TerminalPage::_ClearPaneInfoOverlay()
+    void TerminalPage::_CTuxRemoveOverlay(const winrt::TerminalApp::Tab& tab)
+    {
+        _ctuxTabOverlays.erase(
+            std::remove_if(_ctuxTabOverlays.begin(), _ctuxTabOverlays.end(),
+                           [&](const CTuxTabOverlay& o) {
+                               auto t = o.tab.get();
+                               return !t || t == tab;
+                           }),
+            _ctuxTabOverlays.end());
+    }
+
+    void TerminalPage::_CTuxHideOverlayStrip()
     {
         auto strip = PaneInfoStrip();
         strip.Children().Clear();
         strip.ColumnDefinitions().Clear();
         strip.Visibility(Visibility::Collapsed);
         PaneInfoStripRow().Height(WUX::GridLength{ 0.0, WUX::GridUnitType::Pixel });
-
-        _overlayRows = 0;
-        _overlayCols = 0;
-        _overlaySlots.clear();
-        _overlayProjects.clear();
-        _layoutOverlayTab = {};
-        _overlayPaneForProject.clear();
     }
 
-    void TerminalPage::_RepositionPaneInfoCards()
+    void TerminalPage::_BuildPaneInfoOverlay(
+        uint32_t rows, uint32_t cols,
+        const std::vector<ClickTerminal::LayoutSlot>& slots,
+        const std::vector<ClickTerminal::Project>& projects,
+        winrt::TerminalApp::Tab overlayTab,
+        const std::vector<std::weak_ptr<Pane>>& slotPanes)
     {
-        if (_overlayCols == 0) return;
+        // Record per-tab overlay state (replaces any stale entry for this tab only)
+        _CTuxRemoveOverlay(overlayTab);
+        CTuxTabOverlay ov;
+        ov.tab = winrt::make_weak(overlayTab);
+        ov.rows = rows;
+        ov.cols = cols;
+        ov.slots = slots;
+        ov.projects = projects;
+        ov.slotPanes = slotPanes;
+        _ctuxTabOverlays.push_back(std::move(ov));
+
+        auto findProject = [&](const std::wstring& pid) -> const ClickTerminal::Project* {
+            for (const auto& p : projects)
+                if (p.Id == pid) return &p;
+            return nullptr;
+        };
+
+        // Register a session record for every slot pane (one per pane, so the
+        // same project may legitimately own several panes at once).
+        for (size_t i = 0; i < slots.size() && i < slotPanes.size(); ++i)
+        {
+            if (slots[i].ProjectId.empty()) continue;
+            if (auto pane = slotPanes[i].lock())
+                _CTuxRegisterSession(slots[i].ProjectId, L"", false, true, overlayTab, pane);
+        }
+
+        _CTuxRepositionOverlay(_ctuxTabOverlays.back());
+        PaneInfoStrip().Visibility(Visibility::Visible);
+        PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
+
+        // Auto-start AI in EVERY slot pane whose project enables AutoStartAI.
+        // _CTuxSendWhenReady gates each send on the pane's connection readiness,
+        // so no fragile one-shot Low-priority dispatch is needed anymore.
+        for (size_t i = 0; i < slots.size() && i < slotPanes.size(); ++i)
+        {
+            const auto& slot = slots[i];
+            if (slot.ProjectId.empty()) continue;
+
+            const auto* proj = findProject(slot.ProjectId);
+            if (!proj || !proj->AIConfig.AutoStartAI || proj->AIConfig.DefaultTool.empty()) continue;
+
+            auto pane = slotPanes[i].lock();
+            if (!pane) continue;
+            auto ctrl = pane->GetTerminalControl();
+            if (!ctrl) continue;
+
+            auto launchCmd = _CTuxResolveAICommand(*proj);
+            if (launchCmd.empty()) continue;
+
+            CTuxLog(L"[CTux] Layout AutoStartAI slot=" + std::to_wstring(i) + L" cmd=" + launchCmd);
+            _CTuxSendWhenReady(ctrl, hstring{ launchCmd + L"\r" });
+            _CTuxMarkAIRunning(pane, std::wstring{ proj->AIConfig.DefaultTool }, true);
+            if (proj->AIConfig.DefaultTool == L"claude")
+                _CTuxAttachContextMonitor(slot.ProjectId, ctrl);
+            Sidebar().SetSessionActive(hstring{ slot.ProjectId }, true);
+        }
+    }
+
+    void TerminalPage::_CTuxRepositionOverlay(const CTuxTabOverlay& ov)
+    {
+        if (ov.cols == 0) return;
 
         auto strip = PaneInfoStrip();
         strip.Children().Clear();
         strip.ColumnDefinitions().Clear();
 
         auto findProject = [&](const std::wstring& id) -> const ClickTerminal::Project* {
-            for (const auto& p : _overlayProjects)
+            for (const auto& p : ov.projects)
                 if (p.Id == id) return &p;
             return nullptr;
         };
@@ -884,18 +991,18 @@ namespace winrt::TerminalApp::implementation
         { winrt::Windows::UI::Color c{ 255, 80, 160, 220 }; accentBrush.Color(c); }
 
         // Equal-width column per terminal column
-        for (uint32_t c = 0; c < _overlayCols; c++)
+        for (uint32_t c = 0; c < ov.cols; c++)
         {
             WUX::Controls::ColumnDefinition cd;
             cd.Width({ 1.0, WUX::GridUnitType::Star });
             strip.ColumnDefinitions().Append(cd);
         }
 
-        for (uint32_t c = 0; c < _overlayCols; c++)
+        for (uint32_t c = 0; c < ov.cols; c++)
         {
             // Pick the first slot in this column
             std::wstring projectId;
-            for (const auto& slot : _overlaySlots)
+            for (const auto& slot : ov.slots)
                 if (slot.Col == c) { projectId = slot.ProjectId; break; }
 
             const ClickTerminal::Project* proj = findProject(projectId);
