@@ -402,6 +402,18 @@ powershell -NoExit -ExecutionPolicy Bypass -NoProfile -File "%~dp0script.ps1"
 
 ---
 
+### ContentDialog 멤버 함수 안에서 `FontFamily{...}` 생성 금지 — 이름 충돌
+
+**증상**: `error C2760: 구문 오류: 여기서 '{'은(는) 예상치 못한 오류` (FontFamily{ L"..." } 위치)
+
+**원인**: ContentDialog(Control) 파생 클래스의 멤버 함수 안에서 `FontFamily`는 타입이 아니라
+기반 클래스의 프로퍼티 접근자 `FontFamily()`로 해석된다.
+
+**해결**: 반드시 `Media::FontFamily{ L"Segoe MDL2 Assets" }` 처럼 네임스페이스 한정.
+(동적 UI를 멤버 함수에서 만들 때 반복되는 실수 — ProjectOrganizerDialog에서 발생했음)
+
+---
+
 ### Settings / ContentDialog 디버그 로그
 
 `%LOCALAPPDATA%\ClickTerminal\ctux-debug.log` 에서 확인:
