@@ -39,31 +39,46 @@ namespace ClickTerminal
     // -----------------------------------------------------------------------
     std::vector<CTuxTheme> GetBuiltInThemes()
     {
+        // CTuxThemeColors field order:
+        //   SidebarBg, SidebarHeaderBg, SidebarText, SidebarTextMuted,
+        //   TabBarBg, DialogBg, DialogNavBg,
+        //   PaneHeaderBg, PaneHeaderText, PaneHeaderAccent, ExitOverlayBg, PaneBorder,
+        //   TerminalScheme
         return {
             {
                 L"CTux Dark", true, false,
                 { L"#252535", L"#1A1A2A", L"#CDD6F4", L"#7C7F93",
-                  L"#1A1A2A", L"#2A2A3A", L"#1F1F2F", L"CTux Dark" }
+                  L"#1A1A2A", L"#2A2A3A", L"#1F1F2F",
+                  L"#1C1C26", L"#FFFFFF", L"#50A0DC", L"#0C0C16", L"#333344",
+                  L"CTux Dark" }
             },
             {
                 L"CTux Light", true, true,
                 { L"#C4A882", L"#B5956A", L"#2C1D0E", L"#7A5C3A",
-                  L"#B5956A", L"#F5EDDF", L"#EDE0CD", L"CTux Light" }
+                  L"#B5956A", L"#F5EDDF", L"#EDE0CD",
+                  L"#EAE0CC", L"#2C1D0E", L"#2060A8", L"#D8CCB8", L"#A8906C",
+                  L"CTux Light" }
             },
             {
                 L"Mocha", true, false,
                 { L"#2D1F16", L"#1E1208", L"#F5DEB3", L"#A08060",
-                  L"#1E1208", L"#352515", L"#2A1A0D", L"CTux Mocha" }
+                  L"#1E1208", L"#352515", L"#2A1A0D",
+                  L"#261A10", L"#F5DEB3", L"#E8A84A", L"#150D06", L"#4A3828",
+                  L"CTux Mocha" }
             },
             {
                 L"Ocean", true, false,
                 { L"#1A2535", L"#0F1A28", L"#B8D4F0", L"#6890B8",
-                  L"#0F1A28", L"#1E2D40", L"#162233", L"Campbell" }
+                  L"#0F1A28", L"#1E2D40", L"#162233",
+                  L"#14202F", L"#B8D4F0", L"#58A8E0", L"#0A121E", L"#2A3D55",
+                  L"Campbell" }
             },
             {
                 L"Forest", true, false,
                 { L"#1A2518", L"#0F1A0D", L"#C8E6C0", L"#6A9060",
-                  L"#0F1A0D", L"#1E2D1C", L"#162314", L"Solarized Dark" }
+                  L"#0F1A0D", L"#1E2D1C", L"#162314",
+                  L"#142011", L"#C8E6C0", L"#7CBE6E", L"#0A1408", L"#2E4228",
+                  L"Solarized Dark" }
             },
         };
     }
@@ -99,6 +114,11 @@ namespace ClickTerminal
         tc.TabBarBg         = NarrowToWide(c.get("tabBarBg",         "").asString());
         tc.DialogBg         = NarrowToWide(c.get("dialogBg",         "").asString());
         tc.DialogNavBg      = NarrowToWide(c.get("dialogNavBg",      "").asString());
+        tc.PaneHeaderBg     = NarrowToWide(c.get("paneHeaderBg",     "").asString());
+        tc.PaneHeaderText   = NarrowToWide(c.get("paneHeaderText",   "").asString());
+        tc.PaneHeaderAccent = NarrowToWide(c.get("paneHeaderAccent", "").asString());
+        tc.ExitOverlayBg    = NarrowToWide(c.get("exitOverlayBg",    "").asString());
+        tc.PaneBorder       = NarrowToWide(c.get("paneBorder",       "").asString());
         tc.TerminalScheme   = NarrowToWide(c.get("terminalScheme",   "").asString());
         return tc;
     }
@@ -113,6 +133,11 @@ namespace ClickTerminal
         v["tabBarBg"]         = WideToNarrow(c.TabBarBg);
         v["dialogBg"]         = WideToNarrow(c.DialogBg);
         v["dialogNavBg"]      = WideToNarrow(c.DialogNavBg);
+        v["paneHeaderBg"]     = WideToNarrow(c.PaneHeaderBg);
+        v["paneHeaderText"]   = WideToNarrow(c.PaneHeaderText);
+        v["paneHeaderAccent"] = WideToNarrow(c.PaneHeaderAccent);
+        v["exitOverlayBg"]    = WideToNarrow(c.ExitOverlayBg);
+        v["paneBorder"]       = WideToNarrow(c.PaneBorder);
         v["terminalScheme"]   = WideToNarrow(c.TerminalScheme);
         return v;
     }
@@ -121,12 +146,17 @@ namespace ClickTerminal
     // Schema versioning
     //   1 — original (theme: "dark"/"light", projectsConfigPath)
     //   2 — added selectedThemeName, customThemes
-    //   3 — current: explicit schemaVersion field, color fallbacks in custom themes
+    //   3 — explicit schemaVersion field, color fallbacks in custom themes
+    //   4 — current: pane header / exit overlay / pane border colors
     // -----------------------------------------------------------------------
-    static constexpr int kCurrentSchemaVersion = 3;
+    static constexpr int kCurrentSchemaVersion = 4;
 
-    // Fill any empty color fields in a custom theme with CTux Dark defaults
-    static void FillMissingColors(CTuxThemeColors& c)
+    // Fill any empty color fields in a custom theme with defaults.
+    // Legacy (pre-v4) fields fall back to CTux Dark values; the v4 pane/overlay
+    // fields fall back per base mode so old light themes stay readable.
+    // Dark fallbacks equal the previously hardcoded UI colors, so old themes
+    // show no visual change.
+    static void FillMissingColors(CTuxThemeColors& c, bool isLightMode)
     {
         const CTuxThemeColors def{}; // default-initialized = CTux Dark values
         if (c.SidebarBg.empty())        c.SidebarBg        = def.SidebarBg;
@@ -136,6 +166,11 @@ namespace ClickTerminal
         if (c.TabBarBg.empty())         c.TabBarBg         = def.TabBarBg;
         if (c.DialogBg.empty())         c.DialogBg         = def.DialogBg;
         if (c.DialogNavBg.empty())      c.DialogNavBg      = def.DialogNavBg;
+        if (c.PaneHeaderBg.empty())     c.PaneHeaderBg     = isLightMode ? L"#E8E8F2" : L"#1C1C26";
+        if (c.PaneHeaderText.empty())   c.PaneHeaderText   = isLightMode ? L"#1A1A2A" : L"#FFFFFF";
+        if (c.PaneHeaderAccent.empty()) c.PaneHeaderAccent = isLightMode ? L"#2060A8" : L"#50A0DC";
+        if (c.ExitOverlayBg.empty())    c.ExitOverlayBg    = isLightMode ? L"#D8D8E4" : L"#0C0C16";
+        if (c.PaneBorder.empty())       c.PaneBorder       = isLightMode ? L"#C0C0CC" : L"#333344";
         if (c.TerminalScheme.empty())   c.TerminalScheme   = def.TerminalScheme;
     }
 
@@ -211,7 +246,7 @@ namespace ClickTerminal
                 t.IsBuiltIn   = false;
                 t.IsLightMode = entry.get("isLightMode", false).asBool();
                 t.Colors      = ParseThemeColors(entry["colors"]);
-                FillMissingColors(t.Colors); // ensure no empty fields
+                FillMissingColors(t.Colors, t.IsLightMode); // ensure no empty fields
                 if (!t.Name.empty()) s.CustomThemes.push_back(std::move(t));
             }
         }

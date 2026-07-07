@@ -5205,7 +5205,11 @@ namespace winrt::TerminalApp::implementation
             // DON'T use Transparent here - if it's "Transparent", then it won't
             // be able to hittest for clicks, and then clicking on the border
             // will eat focus.
-            _paneResources.unfocusedBorderBrush = SolidColorBrush{ Colors::Black() };
+            // ClickTerminal: fall back to the CTux theme's PaneBorder color instead of Black.
+            const auto pb = ClickTerminal::ParseThemeHex(
+                ClickTerminal::CTuxSettings::Load().GetActiveTheme().Colors.PaneBorder, 0xFF333344UL);
+            _paneResources.unfocusedBorderBrush =
+                SolidColorBrush{ Color{ 0xFF, uint8_t(pb >> 16), uint8_t(pb >> 8), uint8_t(pb) } };
         }
 
         const auto broadcastColorKey = winrt::box_value(L"BroadcastPaneBorderColor");
@@ -5220,7 +5224,11 @@ namespace winrt::TerminalApp::implementation
             // DON'T use Transparent here - if it's "Transparent", then it won't
             // be able to hittest for clicks, and then clicking on the border
             // will eat focus.
-            _paneResources.broadcastBorderBrush = SolidColorBrush{ Colors::Black() };
+            // ClickTerminal: fall back to the CTux theme's PaneBorder color instead of Black.
+            const auto pb = ClickTerminal::ParseThemeHex(
+                ClickTerminal::CTuxSettings::Load().GetActiveTheme().Colors.PaneBorder, 0xFF333344UL);
+            _paneResources.broadcastBorderBrush =
+                SolidColorBrush{ Color{ 0xFF, uint8_t(pb >> 16), uint8_t(pb >> 8), uint8_t(pb) } };
         }
     }
 

@@ -42,6 +42,10 @@ namespace winrt::TerminalApp::implementation
                                  const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
         void _ColorLostFocus(const winrt::Windows::Foundation::IInspectable& sender,
                              const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
+        void _PreviewRegionTapped(const winrt::Windows::Foundation::IInspectable& sender,
+                                  const winrt::Windows::UI::Xaml::Input::TappedRoutedEventArgs& e);
+        void _PickerColorChanged(const winrt::Windows::Foundation::IInspectable& sender,
+                                 const winrt::Microsoft::UI::Xaml::Controls::ColorChangedEventArgs& args);
 
         // Returns updated custom themes (also syncs current editing state)
         std::vector<ClickTerminal::CTuxTheme> GetUpdatedCustomThemes();
@@ -51,11 +55,21 @@ namespace winrt::TerminalApp::implementation
         void _SyncEditingTheme();
         void _LoadColorEditor(const ClickTerminal::CTuxTheme& theme);
         void _UpdateSwatch(const std::wstring& fieldName, const std::wstring& hexColor);
+        void _UpdatePreview();
+        void _SelectColorField(const std::wstring& fieldName);
+        void _SyncPickerToSelectedField();
+        void _ApplyColorEdit(const std::wstring& fieldName, const std::wstring& hexColor,
+                             bool updateTextBox, bool updatePicker);
+        const ClickTerminal::CTuxThemeColors& _DisplayedColors() const;
 
         // All themes (built-in + custom) for the combo
         std::vector<ClickTerminal::CTuxTheme> _allThemes;
         ClickTerminal::CTuxTheme _editingTheme;
         bool _suppressThemeChange{ false };
+
+        // Preview / color-picker state
+        std::wstring _selectedColorField{ L"SidebarBg" };
+        bool _suppressPickerChange{ false };
 
         winrt::event_token _rootSizeToken{};
         winrt::Windows::UI::Xaml::FrameworkElement _bgElement{ nullptr };

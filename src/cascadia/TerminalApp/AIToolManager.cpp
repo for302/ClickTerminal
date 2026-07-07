@@ -291,32 +291,6 @@ namespace ClickTerminal
         return result;
     }
 
-    void AIToolManager::RegisterSession(const std::wstring& sessionId, AITool tool, HANDLE processHandle)
-    {
-        SessionInfo info;
-        info.ProcessHandle = processHandle;
-        info.Tool = tool;
-        _sessions[sessionId] = info;
-    }
-
-    void AIToolManager::UnregisterSession(const std::wstring& sessionId)
-    {
-        _sessions.erase(sessionId);
-    }
-
-    bool AIToolManager::SendExitCommand(const std::wstring& sessionId)
-    {
-        auto it = _sessions.find(sessionId);
-        if (it == _sessions.end()) return false;
-
-        const auto& session = it->second;
-        if (session.StdinWrite == INVALID_HANDLE_VALUE) return false;
-
-        const char exitCmd[] = "/exit\n";
-        DWORD written = 0;
-        return WriteFile(session.StdinWrite, exitCmd, sizeof(exitCmd) - 1, &written, nullptr) != 0;
-    }
-
     std::optional<ContextUsage> AIToolManager::ParseContextUsageLine(
         AITool tool,
         const std::string& outputLine) const

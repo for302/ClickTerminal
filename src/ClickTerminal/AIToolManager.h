@@ -121,10 +121,8 @@ namespace ClickTerminal
             AITool         tool,
             bool           dangerousSkipEnabled) const;
 
-        // Session lifecycle
-        void RegisterSession(const std::wstring& sessionId, AITool tool, HANDLE processHandle);
-        void UnregisterSession(const std::wstring& sessionId);
-        bool SendExitCommand(const std::wstring& sessionId);  // writes "/exit\n" to PTY stdin
+        // NOTE: session lifecycle now lives in TerminalPage (per-pane CTuxPaneSession
+        // tracking, CTuxIntegration.cpp). /exit is sent via TermControl.SendInput.
 
         // Parse Claude's stream-json output for token usage
         std::optional<ContextUsage> ParseContextUsageLine(
@@ -135,14 +133,6 @@ namespace ClickTerminal
 
     private:
         std::unordered_map<uint8_t, AIToolConfig> _toolConfigs;
-
-        struct SessionInfo
-        {
-            HANDLE  ProcessHandle{ INVALID_HANDLE_VALUE };
-            AITool  Tool;
-            HANDLE  StdinWrite{ INVALID_HANDLE_VALUE }; // PTY stdin pipe for SendExitCommand
-        };
-        std::unordered_map<std::wstring, SessionInfo> _sessions;
 
         LaunchCommand BuildClaudeCommand(const Project& project, bool dangerousSkipEnabled) const;
         LaunchCommand BuildCodexCommand(const Project& project, bool dangerousSkipEnabled) const;

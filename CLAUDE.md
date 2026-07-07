@@ -16,7 +16,7 @@
 - 대화 세션 중 여러 수정이 있어도 배포 시점 기준으로 한 번 올리면 됨
 - Claude는 작업 완료 후 배포 전에 버전을 올렸는지 **항상 확인하고 언급**한다
 
-**현재 버전**: v0.032
+**현재 버전**: v0.035
 
 ---
 
@@ -139,10 +139,12 @@ makeappx 명령:
 ### 매니페스트 관리 — 새 WinRT 타입 추가 시
 `_msix_extract\pkg\AppxManifest.xml` 의 `<InProcessServer>` 블록에 `<ActivatableClass>` 추가 필수.
 누락 시 앱 시작 시 winrt::terminate() → FAST_FAIL_FATAL_APP_EXIT (0xc0000409, ucrtbase.dll) 크래시.
-현재 등록된 커스텀 타입:
-- TerminalApp.ContextMeter (line ~271)
-- TerminalApp.SettingsDialog, ProjectSidebar (line ~275-276)
-- TerminalApp.AddProjectDialog, AISetupPage (line ~293-294)
+현재 등록된 커스텀 타입 (8종):
+- TerminalApp.ContextMeter (line ~270)
+- TerminalApp.SettingsDialog, ProjectSidebar (line ~274-275)
+- TerminalApp.TabRowControl (line ~289)
+- TerminalApp.AddProjectDialog, ProjectOrganizerDialog (line ~294-295)
+- TerminalApp.AISetupPage, LayoutPickerDialog (line ~296-297)
 
 ### 설치된 패키지 정보
 - PackageFamilyName: `WindowsTerminalDev_xpqk32cx38ema`
@@ -152,11 +154,20 @@ makeappx 명령:
 ## 코드 위치
 
 - 우리 추가 코드: `src/cascadia/TerminalApp/` 및 `src/ClickTerminal/`
+- **TerminalPage 통합 코드**: `CTuxIntegration.cpp` — 사이드바 이벤트 핸들러, AI 실행/세션, 레이아웃 시스템, 페인 제목 오버레이 전부 여기 (TerminalPage 멤버 분산 정의, TabManagement.cpp와 같은 패턴)
 - 테마 데이터: `src/ClickTerminal/CTuxTheme.h`, `CTuxSettings.h`
 - 테마 구현: `src/cascadia/TerminalApp/CTuxSettingsManager.cpp`
 - 사이드바: `ProjectSidebar.xaml/.h/.cpp`
 - 설정창: `SettingsDialog.xaml/.h/.cpp`
 - 탭바: `TabRowControl.xaml/.h/.cpp`
+- 프로젝트 정리(순서/폴더): `ProjectOrganizerDialog.xaml/.h/.cpp`
+- 레이아웃 선택/편집: `LayoutPickerDialog.xaml/.h/.cpp` (모드: add/edit/reorder)
+
+### AI 세션 추적 모델 (v0.035~)
+- `TerminalPage.h`의 `CTuxPaneSession` 벡터 `_ctuxSessions` — **페인 단위** 추적 (같은 프로젝트가 여러 페인 소유 가능)
+- 레이아웃 제목 스트립은 `CTuxTabOverlay` 벡터 `_ctuxTabOverlays` — **탭별** 상태 (다중 레이아웃 탭 공존)
+- AI 실행 명령은 `_CTuxResolveAICommand()` — 프로젝트의 AI Start Command 최우선, 없으면 AIToolManager 조립
+- 입력 전송은 `_CTuxSendWhenReady()` — ConnectionState 이벤트 게이트 + 5초 타임아웃 (신규 페인 SendInput 유실 방지)
 
 ## 알려진 버그 패턴 및 해결책
 

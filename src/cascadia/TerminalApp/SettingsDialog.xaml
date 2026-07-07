@@ -7,6 +7,7 @@
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+               xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
                CloseButtonText="Cancel"
                DefaultButton="Primary"
                PrimaryButtonText="Save"
@@ -137,6 +138,163 @@
                             Click="_DeleteThemeClicked" />
                 </Grid>
 
+                <!-- Mini layout preview — click an area to select its color field -->
+                <TextBlock FontSize="12"
+                           FontWeight="SemiBold"
+                           Margin="0,8,0,2"
+                           Text="Layout Preview" />
+                <Grid x:Name="PreviewRoot"
+                      Width="280"
+                      Height="170"
+                      HorizontalAlignment="Left"
+                      Background="#101018"
+                      BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+                      BorderThickness="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Sidebar -->
+                    <Border x:Name="PrevSidebar"
+                            Grid.Column="0"
+                            BorderBrush="Transparent"
+                            BorderThickness="2"
+                            Tag="SidebarBg"
+                            Tapped="_PreviewRegionTapped">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="24" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border x:Name="PrevSidebarHeader"
+                                    Grid.Row="0"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="2"
+                                    Tag="SidebarHeaderBg"
+                                    Tapped="_PreviewRegionTapped" />
+                            <StackPanel Grid.Row="1"
+                                        Margin="8,10,8,0"
+                                        Spacing="8">
+                                <Border x:Name="PrevSidebarText"
+                                        Height="10"
+                                        CornerRadius="2"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        Tag="SidebarText"
+                                        Tapped="_PreviewRegionTapped" />
+                                <Border x:Name="PrevSidebarTextMuted"
+                                        Height="10"
+                                        Width="32"
+                                        HorizontalAlignment="Left"
+                                        CornerRadius="2"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        Tag="SidebarTextMuted"
+                                        Tapped="_PreviewRegionTapped" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Main area: tab bar / pane header strip / terminal body -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="22" />
+                            <RowDefinition Height="24" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border x:Name="PrevTabBar"
+                                Grid.Row="0"
+                                BorderBrush="Transparent"
+                                BorderThickness="2"
+                                Tag="TabBarBg"
+                                Tapped="_PreviewRegionTapped" />
+                        <Border x:Name="PrevPaneHeader"
+                                Grid.Row="1"
+                                BorderBrush="Transparent"
+                                BorderThickness="2"
+                                Tag="PaneHeaderBg"
+                                Tapped="_PreviewRegionTapped">
+                            <StackPanel Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="6">
+                                <Border x:Name="PrevPaneHeaderText"
+                                        Width="26"
+                                        Height="9"
+                                        CornerRadius="2"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        Tag="PaneHeaderText"
+                                        Tapped="_PreviewRegionTapped" />
+                                <Border x:Name="PrevPaneHeaderAccent"
+                                        Width="16"
+                                        Height="9"
+                                        CornerRadius="2"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        Tag="PaneHeaderAccent"
+                                        Tapped="_PreviewRegionTapped" />
+                            </StackPanel>
+                        </Border>
+                        <Grid Grid.Row="2"
+                              Background="#101018">
+                            <!-- Pane boundary line -->
+                            <Border x:Name="PrevPaneBorder"
+                                    Width="4"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Stretch"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="1"
+                                    Tag="PaneBorder"
+                                    Tapped="_PreviewRegionTapped" />
+                            <!-- Exit overlay chip -->
+                            <Border x:Name="PrevExitOverlay"
+                                    Width="44"
+                                    Height="20"
+                                    Margin="10,0,0,10"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    CornerRadius="3"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="2"
+                                    Tag="ExitOverlayBg"
+                                    Tapped="_PreviewRegionTapped" />
+                            <!-- Dialog mock -->
+                            <Border x:Name="PrevDialog"
+                                    Width="110"
+                                    Height="66"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="4"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="2"
+                                    Tag="DialogBg"
+                                    Tapped="_PreviewRegionTapped">
+                                <Border x:Name="PrevDialogNav"
+                                        Width="26"
+                                        HorizontalAlignment="Left"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="2"
+                                        Tag="DialogNavBg"
+                                        Tapped="_PreviewRegionTapped" />
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <!-- Color picker — enabled for custom themes; edits the selected area -->
+                <muxc:ColorPicker x:Name="ThemeColorPicker"
+                                  Margin="0,6,0,0"
+                                  HorizontalAlignment="Left"
+                                  ColorSpectrumShape="Box"
+                                  IsAlphaEnabled="False"
+                                  IsColorChannelTextInputVisible="False"
+                                  IsColorPreviewVisible="False"
+                                  IsHexInputVisible="True"
+                                  Visibility="Collapsed"
+                                  ColorChanged="_PickerColorChanged" />
+
                 <!-- Color editor — shown only for custom themes -->
                 <StackPanel x:Name="ColorEditorPanel"
                             Margin="0,6,0,0"
@@ -179,7 +337,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="SidebarBg" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchSidebarBg" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="SidebarBg" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Sidebar Header -->
@@ -194,7 +353,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="SidebarHeaderBg" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchSidebarHeaderBg" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="SidebarHeaderBg" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Sidebar Text -->
@@ -209,7 +369,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="SidebarText" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchSidebarText" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="SidebarText" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Sidebar Text Muted -->
@@ -224,7 +385,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="SidebarTextMuted" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchSidebarTextMuted" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="SidebarTextMuted" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Tab Bar -->
@@ -239,7 +401,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="TabBarBg" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchTabBarBg" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="TabBarBg" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Dialog Background -->
@@ -254,7 +417,8 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="DialogBg" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchDialogBg" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="DialogBg" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Dialog Nav -->
@@ -269,7 +433,88 @@
                                  FontFamily="Consolas" FontSize="11" MaxLength="7"
                                  Tag="DialogNavBg" LostFocus="_ColorLostFocus" />
                         <Rectangle x:Name="SwatchDialogNavBg" Grid.Column="2"
-                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3" />
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="DialogNavBg" Tapped="_PreviewRegionTapped" />
+                    </Grid>
+
+                    <!-- Pane Header Background -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="페인 헤더 배경" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorPaneHeaderBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="PaneHeaderBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchPaneHeaderBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="PaneHeaderBg" Tapped="_PreviewRegionTapped" />
+                    </Grid>
+
+                    <!-- Pane Header Text -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="페인 헤더 텍스트" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorPaneHeaderText" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="PaneHeaderText" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchPaneHeaderText" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="PaneHeaderText" Tapped="_PreviewRegionTapped" />
+                    </Grid>
+
+                    <!-- Pane Header Accent -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="페인 헤더 강조" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorPaneHeaderAccent" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="PaneHeaderAccent" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchPaneHeaderAccent" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="PaneHeaderAccent" Tapped="_PreviewRegionTapped" />
+                    </Grid>
+
+                    <!-- Exit Overlay -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="종료 오버레이" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorExitOverlayBg" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="ExitOverlayBg" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchExitOverlayBg" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="ExitOverlayBg" Tapped="_PreviewRegionTapped" />
+                    </Grid>
+
+                    <!-- Pane Border -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="145" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="26" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="페인 경계선" VerticalAlignment="Center" FontSize="11" />
+                        <TextBox x:Name="ColorPaneBorder" Grid.Column="1"
+                                 FontFamily="Consolas" FontSize="11" MaxLength="7"
+                                 Tag="PaneBorder" LostFocus="_ColorLostFocus" />
+                        <Rectangle x:Name="SwatchPaneBorder" Grid.Column="2"
+                                   Margin="4,2,0,2" RadiusX="3" RadiusY="3"
+                                   Tag="PaneBorder" Tapped="_PreviewRegionTapped" />
                     </Grid>
 
                     <!-- Terminal Scheme -->

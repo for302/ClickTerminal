@@ -1,0 +1,23 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+namespace TerminalApp
+{
+    [default_interface] runtimeclass ProjectOrganizerDialog : Windows.UI.Xaml.Controls.ContentDialog
+    {
+        ProjectOrganizerDialog();
+
+        // Inject current state before showing.
+        // JSON: {"folders":[{id,name,order,collapsed}], "projects":[{id,name,order,folderId}]}
+        void SetData(String json);
+
+        // True if the primary ("저장") button confirmed the dialog.
+        Boolean ShouldSave { get; };
+
+        // Edited state, only meaningful when ShouldSave is true.
+        // JSON: {"folders":[{id,name,order}], "projects":[{id,order,folderId}]}
+        // New folders use temporary ids "new-N"; the caller creates real folders
+        // via ProjectManager::AddFolder and maps the ids.
+        String ResultJson { get; };
+    }
+}

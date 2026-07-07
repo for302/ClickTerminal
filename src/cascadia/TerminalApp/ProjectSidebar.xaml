@@ -32,6 +32,16 @@
                         Orientation="Horizontal"
                         Spacing="2"
                         VerticalAlignment="Center">
+                <Button x:Name="OrganizeButton"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        Click="_OrganizeClicked"
+                        ToolTipService.ToolTip="프로젝트 관리 (순서/폴더)">
+                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                              FontSize="12"
+                              Glyph="&#xE713;" />
+                </Button>
                 <Button x:Name="AddProjectButton"
                         Width="28"
                         Height="28"

@@ -67,6 +67,15 @@ namespace winrt::TerminalApp::implementation
     }
 
     // ------------------------------------------------------------------------
+    // CTux hex color helper — "#RRGGBB" → WinRT Color (fallback: dark gray)
+    // ------------------------------------------------------------------------
+    static winrt::Windows::UI::Color CTuxParseHex(const std::wstring& hex)
+    {
+        const auto v = ClickTerminal::ParseThemeHex(hex);
+        return { uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
+    }
+
+    // ------------------------------------------------------------------------
     // Per-pane session tracking helpers
     // ------------------------------------------------------------------------
 
@@ -538,18 +547,10 @@ namespace winrt::TerminalApp::implementation
     {
         auto ctuxSettings = ClickTerminal::CTuxSettings::Load();
         auto newTheme = ctuxSettings.GetActiveTheme();
-        auto parseColor = [](const std::wstring& hex) -> winrt::Windows::UI::Color {
-            std::wstring h = hex;
-            if (!h.empty() && h[0] == L'#') h = h.substr(1);
-            uint32_t v = 0;
-            for (auto c : h) { v <<= 4; if (c >= L'0' && c <= L'9') v |= c - L'0'; else if (c >= L'a' && c <= L'f') v |= c - L'a' + 10; else if (c >= L'A' && c <= L'F') v |= c - L'A' + 10; }
-            if (h.size() == 6) return { 0xFF, uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
-            return { 0xFF, 0x40, 0x40, 0x40 };
-        };
         auto tabRowImpl = winrt::get_self<implementation::TabRowControl>(_tabRow);
-        auto tabStripBg = parseColor(newTheme.Colors.SidebarBg);
-        auto tabItemBg  = parseColor(newTheme.Colors.TabBarBg);
-        tabRowImpl->ApplyTheme(tabStripBg, tabItemBg, parseColor(newTheme.Colors.SidebarText));
+        auto tabStripBg = CTuxParseHex(newTheme.Colors.SidebarBg);
+        auto tabItemBg  = CTuxParseHex(newTheme.Colors.TabBarBg);
+        tabRowImpl->ApplyTheme(tabStripBg, tabItemBg, CTuxParseHex(newTheme.Colors.SidebarText));
         // Propagate to GDI NC painter (same fix as startup — see Create block above).
         TitlebarBrush(winrt::Windows::UI::Xaml::Media::SolidColorBrush{ tabStripBg });
         winrt::get_self<implementation::ProjectSidebar>(Sidebar())->RefreshTheme();
@@ -1085,14 +1086,17 @@ namespace winrt::TerminalApp::implementation
             return nullptr;
         };
 
+        // CTux theme colors for the pane header strip (was hardcoded dark values)
+        const auto stripTheme = ClickTerminal::CTuxSettings::Load().GetActiveTheme();
         WUX::Media::SolidColorBrush bgBrush;
-        { winrt::Windows::UI::Color c{ 255, 28, 28, 38 }; bgBrush.Color(c); }
+        bgBrush.Color(CTuxParseHex(stripTheme.Colors.PaneHeaderBg));
         WUX::Media::SolidColorBrush whiteBrush;
-        { winrt::Windows::UI::Color c{ 255, 255, 255, 255 }; whiteBrush.Color(c); }
-        WUX::Media::SolidColorBrush grayBrush;
-        { winrt::Windows::UI::Color c{ 255, 180, 180, 195 }; grayBrush.Color(c); }
+        whiteBrush.Color(CTuxParseHex(stripTheme.Colors.PaneHeaderText));
+        WUX::Media::SolidColorBrush grayBrush; // muted text: PaneHeaderText at 70%
+        grayBrush.Color(CTuxParseHex(stripTheme.Colors.PaneHeaderText));
+        grayBrush.Opacity(0.7);
         WUX::Media::SolidColorBrush accentBrush;
-        { winrt::Windows::UI::Color c{ 255, 80, 160, 220 }; accentBrush.Color(c); }
+        accentBrush.Color(CTuxParseHex(stripTheme.Colors.PaneHeaderAccent));
 
         // Equal-width column per terminal column
         for (uint32_t c = 0; c < ov.cols; c++)

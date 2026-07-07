@@ -70,6 +70,9 @@
     <Page Include="AddProjectDialog.xaml">
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="ProjectOrganizerDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="LayoutPickerDialog.xaml">
       <SubType>Designer</SubType>
     </Page>
@@ -149,6 +152,9 @@
     </ClInclude>
     <ClInclude Include="AddProjectDialog.h">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="ProjectOrganizerDialog.h">
+      <DependentUpon>ProjectOrganizerDialog.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="LayoutPickerDialog.h">
       <DependentUpon>LayoutPickerDialog.xaml</DependentUpon>
@@ -286,6 +292,9 @@
     <ClCompile Include="AddProjectDialog.cpp">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
     </ClCompile>
+    <ClCompile Include="ProjectOrganizerDialog.cpp">
+      <DependentUpon>ProjectOrganizerDialog.xaml</DependentUpon>
+    </ClCompile>
     <ClCompile Include="LayoutPickerDialog.cpp">
       <DependentUpon>LayoutPickerDialog.xaml</DependentUpon>
     </ClCompile>
@@ -417,6 +426,10 @@
     </Midl>
     <Midl Include="AddProjectDialog.idl">
       <DependentUpon>AddProjectDialog.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Midl>
+    <Midl Include="ProjectOrganizerDialog.idl">
+      <DependentUpon>ProjectOrganizerDialog.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Midl>
     <Midl Include="LayoutPickerDialog.idl">

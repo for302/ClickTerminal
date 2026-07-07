@@ -16,6 +16,7 @@
 #include <til/io.h>
 
 #include "TabRowControl.h"
+#include "CTuxSettings.h"
 #include "DebugTapConnection.h"
 #include "..\TerminalSettingsModel\FileUtils.h"
 #include "../TerminalSettingsAppAdapterLib/TerminalSettings.h"
@@ -453,8 +454,12 @@ namespace winrt::TerminalApp::implementation
                 Grid overlay;
                 overlay.HorizontalAlignment(HorizontalAlignment::Stretch);
                 overlay.VerticalAlignment(VerticalAlignment::Stretch);
+                // CTux theme: overlay/text colors (was hardcoded {210,12,12,22} / {255,215,215,230})
+                const auto ctuxTheme = ClickTerminal::CTuxSettings::Load().GetActiveTheme();
+                const auto exitBg   = ClickTerminal::ParseThemeHex(ctuxTheme.Colors.ExitOverlayBg, 0xFF0C0C16UL);
+                const auto exitText = ClickTerminal::ParseThemeHex(ctuxTheme.Colors.PaneHeaderText, 0xFFFFFFFFUL);
                 WUX::Media::SolidColorBrush overlayBg;
-                overlayBg.Color({ 210, 12, 12, 22 });
+                overlayBg.Color({ 210, uint8_t(exitBg >> 16), uint8_t(exitBg >> 8), uint8_t(exitBg) });
                 overlay.Background(overlayBg);
 
                 StackPanel indicator;
@@ -464,7 +469,7 @@ namespace winrt::TerminalApp::implementation
                 indicator.Spacing(20.0);
 
                 WUX::Media::SolidColorBrush textBrush;
-                textBrush.Color({ 255, 215, 215, 230 });
+                textBrush.Color({ 255, uint8_t(exitText >> 16), uint8_t(exitText >> 8), uint8_t(exitText) });
 
                 ProgressRing ring;
                 ring.IsActive(true);

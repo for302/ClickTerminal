@@ -6,9 +6,12 @@
 #include "ProjectSidebar.g.cpp"
 #include "ContextMeter.h"
 #include "AddProjectDialog.h"
+#include "ProjectOrganizerDialog.h"
 #include "AISetupPage.h"
 #include "SettingsDialog.h"
 #include "CTuxSettings.h"
+#include <json/json.h>
+#include <sstream>
 #include <ShlObj.h>
 #include <fstream>
 #include <winrt/Windows.UI.Xaml.Shapes.h>
@@ -116,6 +119,24 @@ namespace
     static SolidColorBrush MakeBrush(const std::wstring& hex)
     {
         return SolidColorBrush{ ParseHexColor(hex) };
+    }
+
+    static std::wstring JsonNarrowToWide(const std::string& s)
+    {
+        if (s.empty()) return {};
+        const int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+        std::wstring result(static_cast<size_t>(len) - 1, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, result.data(), len);
+        return result;
+    }
+
+    static std::string JsonWideToNarrow(const std::wstring& ws)
+    {
+        if (ws.empty()) return {};
+        const int len = WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        std::string result(static_cast<size_t>(len) - 1, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, ws.c_str(), -1, result.data(), len, nullptr, nullptr);
+        return result;
     }
 
     // Lighten (dark theme) or darken (light theme) a hex color for card backgrounds
@@ -258,8 +279,10 @@ namespace winrt::TerminalApp::implementation
 
         _BuildLayoutSection();
 
-        auto projects = _projectManager->GetAllProjects();
-        if (projects.empty())
+        auto projects = _projectManager->GetAllProjects(); // Order asc
+        auto folders  = _projectManager->GetFolders();     // Order asc
+
+        if (projects.empty() && folders.empty())
         {
             TextBlock emptyText;
             emptyText.Text(L"프로젝트가 없습니다.\n+ 버튼으로 추가하세요.");
@@ -272,10 +295,84 @@ namespace winrt::TerminalApp::implementation
             return;
         }
 
+        auto isKnownFolder = [&folders](const std::wstring& fid) {
+            return std::any_of(folders.begin(), folders.end(),
+                               [&fid](const ClickTerminal::ProjectFolder& f) { return f.Id == fid; });
+        };
+
+        // Folder groups first (Order asc), each with its member projects
+        for (const auto& folder : folders)
+        {
+            const auto folderId  = folder.Id;
+            const bool collapsed = folder.Collapsed;
+
+            // Header row: [▶/▼ chevron] [folder name] — click toggles collapse
+            Border header;
+            header.Padding({ 6, 5, 6, 5 });
+            header.Margin({ 0, 4, 0, 2 });
+            header.CornerRadius({ 4, 4, 4, 4 });
+            header.Background(SolidColorBrush{ winrt::Windows::UI::Color{ 0, 0, 0, 0 } }); // transparent, hit-testable
+
+            StackPanel headerPanel;
+            headerPanel.Orientation(Orientation::Horizontal);
+            headerPanel.Spacing(6.0);
+
+            FontIcon chevron;
+            chevron.FontFamily(winrt::Windows::UI::Xaml::Media::FontFamily{ L"Segoe MDL2 Assets" });
+            chevron.Glyph(collapsed ? L"\xE76C" : L"\xE70D"); // ▶ / ▼
+            chevron.FontSize(9.0);
+            chevron.VerticalAlignment(VerticalAlignment::Center);
+            chevron.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
+            headerPanel.Children().Append(chevron);
+
+            FontIcon folderIcon;
+            folderIcon.FontFamily(winrt::Windows::UI::Xaml::Media::FontFamily{ L"Segoe MDL2 Assets" });
+            folderIcon.Glyph(L"\xE8B7"); // folder
+            folderIcon.FontSize(11.0);
+            folderIcon.VerticalAlignment(VerticalAlignment::Center);
+            folderIcon.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
+            headerPanel.Children().Append(folderIcon);
+
+            TextBlock folderName;
+            folderName.Text(hstring{ folder.Name });
+            folderName.FontSize(11.0);
+            folderName.FontWeight(Windows::UI::Text::FontWeights::SemiBold());
+            folderName.VerticalAlignment(VerticalAlignment::Center);
+            folderName.TextTrimming(TextTrimming::CharacterEllipsis);
+            folderName.Foreground(MakeBrush(_activeTheme.Colors.SidebarTextMuted));
+            headerPanel.Children().Append(folderName);
+
+            header.Child(headerPanel);
+            header.Tapped([folderId, collapsed, weakSelf = get_weak()](
+                              const IInspectable&,
+                              const winrt::Windows::UI::Xaml::Input::TappedRoutedEventArgs&) {
+                if (auto self = weakSelf.get())
+                {
+                    self->_projectManager->SetFolderCollapsed(folderId, !collapsed);
+                    self->_projectManager->SaveProjects();
+                    self->_BuildProjectList();
+                }
+            });
+            ProjectListPanel().Children().Append(header);
+
+            if (!collapsed)
+            {
+                for (const auto& project : projects)
+                {
+                    if (project.FolderId != folderId) continue;
+                    auto card = _BuildProjectCard(project);
+                    if (auto fe = card.try_as<FrameworkElement>())
+                        fe.Margin({ 8, 0, 0, 2 }); // indent under the folder
+                    ProjectListPanel().Children().Append(card);
+                }
+            }
+        }
+
+        // Root projects (no folder, or orphaned folder id)
         for (const auto& project : projects)
         {
-            auto card = _BuildProjectCard(project);
-            ProjectListPanel().Children().Append(card);
+            if (!project.FolderId.empty() && isKnownFolder(project.FolderId)) continue;
+            ProjectListPanel().Children().Append(_BuildProjectCard(project));
         }
     }
 
@@ -844,6 +941,148 @@ namespace winrt::TerminalApp::implementation
 
         self->_projectManager->AddProject(std::move(project));
         self->_projectManager->SaveProjects();
+        self->_BuildProjectList();
+    }
+
+    safe_void_coroutine ProjectSidebar::_OrganizeClicked(
+        const winrt::Windows::Foundation::IInspectable& /*sender*/,
+        const winrt::Windows::UI::Xaml::RoutedEventArgs& /*e*/)
+    {
+        auto weakSelf = get_weak();
+
+        // Cancel any orphaned dialog from a previous call
+        if (_pendingOrganizeOp)
+        {
+            try { _pendingOrganizeOp.Cancel(); } catch (...) {}
+            _pendingOrganizeOp = nullptr;
+            co_await winrt::resume_after(std::chrono::milliseconds(100));
+            if (!weakSelf.get()) co_return;
+        }
+
+        // Snapshot current state into the dialog's injection JSON
+        std::string dataJson;
+        {
+            Json::Value root;
+
+            Json::Value fs(Json::arrayValue);
+            for (const auto& f : _projectManager->GetFolders())
+            {
+                Json::Value fj;
+                fj["id"]        = JsonWideToNarrow(f.Id);
+                fj["name"]      = JsonWideToNarrow(f.Name);
+                fj["order"]     = f.Order;
+                fj["collapsed"] = f.Collapsed;
+                fs.append(fj);
+            }
+            root["folders"] = fs;
+
+            Json::Value ps(Json::arrayValue);
+            for (const auto& p : _projectManager->GetAllProjects())
+            {
+                Json::Value pj;
+                pj["id"]       = JsonWideToNarrow(p.Id);
+                pj["name"]     = JsonWideToNarrow(p.Name);
+                pj["order"]    = p.Order;
+                pj["folderId"] = JsonWideToNarrow(p.FolderId);
+                ps.append(pj);
+            }
+            root["projects"] = ps;
+
+            Json::StreamWriterBuilder wb;
+            wb["indentation"] = "";
+            dataJson = Json::writeString(wb, root);
+        }
+
+        winrt::TerminalApp::ProjectOrganizerDialog dialog{ nullptr };
+        try { dialog = winrt::TerminalApp::ProjectOrganizerDialog{}; }
+        catch (...) { DbgLog(L"[Organize] dialog ctor threw"); co_return; }
+
+        auto xamlRoot = this->XamlRoot();
+        if (!xamlRoot) { DbgLog(L"[Organize] XamlRoot null - cannot show dialog"); co_return; }
+        dialog.XamlRoot(xamlRoot);
+        dialog.RequestedTheme(_activeTheme.IsLightMode ? ElementTheme::Light : ElementTheme::Dark);
+        dialog.SetData(hstring{ JsonNarrowToWide(dataJson) });
+        ApplyDarkSmoke(dialog.as<ContentDialog>());
+
+        auto showOp = dialog.ShowAsync();
+        if (auto s = weakSelf.get()) s->_pendingOrganizeOp = showOp;
+
+        ContentDialogResult result{ ContentDialogResult::None };
+        try { result = co_await showOp; }
+        catch (...) { if (auto s = weakSelf.get()) s->_pendingOrganizeOp = nullptr; co_return; }
+
+        if (auto s = weakSelf.get()) s->_pendingOrganizeOp = nullptr;
+
+        auto self = weakSelf.get();
+        if (!self) co_return;
+        if (result != ContentDialogResult::Primary || !dialog.ShouldSave()) co_return;
+
+        // Parse the dialog's edited state and apply through ProjectManager
+        Json::Value r;
+        {
+            Json::CharReaderBuilder builder;
+            std::string errs;
+            std::istringstream ss(JsonWideToNarrow(std::wstring{ dialog.ResultJson() }));
+            if (!Json::parseFromStream(builder, ss, &r, &errs))
+            {
+                DbgLog(L"[Organize] ResultJson parse failed");
+                co_return;
+            }
+        }
+
+        auto& pm = *self->_projectManager;
+        const auto existingFolders = pm.GetFolders();
+
+        // Folders: "new-N" -> AddFolder (map temp id -> real id), existing -> rename,
+        // missing from result -> remove (member projects move to root).
+        std::unordered_map<std::wstring, std::wstring> idMap;   // temp id -> real id
+        std::unordered_map<std::wstring, bool>         kept;    // real ids present in result
+        std::vector<std::wstring> folderOrder;
+
+        for (const auto& fj : r["folders"])
+        {
+            const auto dlgId = JsonNarrowToWide(fj.get("id", "").asString());
+            const auto name  = JsonNarrowToWide(fj.get("name", "").asString());
+            if (dlgId.empty()) continue;
+
+            std::wstring realId;
+            if (dlgId.rfind(L"new-", 0) == 0)
+            {
+                auto created = pm.AddFolder(name.empty() ? L"새 폴더" : name);
+                realId = created.Id;
+                idMap[dlgId] = realId;
+            }
+            else
+            {
+                realId = dlgId;
+                pm.RenameFolder(realId, name);
+            }
+            kept[realId] = true;
+            folderOrder.push_back(realId);
+        }
+
+        for (const auto& f : existingFolders)
+        {
+            if (!kept.count(f.Id)) pm.RemoveFolder(f.Id);
+        }
+        pm.ReorderFolders(folderOrder);
+
+        // Projects: apply folder membership + global order (result is already order asc)
+        std::vector<std::wstring> projectOrder;
+        for (const auto& pj : r["projects"])
+        {
+            const auto projId = JsonNarrowToWide(pj.get("id", "").asString());
+            if (projId.empty()) continue;
+
+            auto folderId = JsonNarrowToWide(pj.get("folderId", "").asString());
+            if (auto it = idMap.find(folderId); it != idMap.end())
+                folderId = it->second; // temp id -> real id
+            pm.MoveProjectToFolder(projId, folderId);
+            projectOrder.push_back(projId);
+        }
+        pm.ReorderProjects(projectOrder);
+
+        pm.SaveProjects();
         self->_BuildProjectList();
     }
 

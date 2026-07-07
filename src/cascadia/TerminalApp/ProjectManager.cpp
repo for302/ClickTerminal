@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "ProjectManager.h"
 #include <json/json.h>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -111,6 +112,14 @@ namespace ClickTerminal
             }
         }
 
+        // Append at the end of the sidebar order
+        uint32_t maxOrder = 0;
+        for (const auto& p : _projects)
+        {
+            if (p.Order > maxOrder) maxOrder = p.Order;
+        }
+        project.Order = _projects.empty() ? 0 : maxOrder + 1;
+
         _projects.push_back(project);
         return { project };
     }
@@ -160,7 +169,150 @@ namespace ClickTerminal
 
     std::vector<Project> ProjectManager::GetAllProjects() const
     {
-        return _projects;
+        auto result = _projects;
+        std::stable_sort(result.begin(), result.end(),
+                         [](const Project& a, const Project& b) { return a.Order < b.Order; });
+        return result;
+    }
+
+    std::vector<ProjectFolder> ProjectManager::GetFolders() const
+    {
+        auto result = _folders;
+        std::stable_sort(result.begin(), result.end(),
+                         [](const ProjectFolder& a, const ProjectFolder& b) { return a.Order < b.Order; });
+        return result;
+    }
+
+    ProjectFolder ProjectManager::AddFolder(const std::wstring& name)
+    {
+        ProjectFolder folder;
+        folder.Id   = GenerateFolderId();
+        folder.Name = name;
+
+        uint32_t maxOrder = 0;
+        for (const auto& f : _folders)
+        {
+            if (f.Order > maxOrder) maxOrder = f.Order;
+        }
+        folder.Order = _folders.empty() ? 0 : maxOrder + 1;
+
+        _folders.push_back(folder);
+        return folder;
+    }
+
+    bool ProjectManager::RenameFolder(const std::wstring& id, const std::wstring& name)
+    {
+        for (auto& f : _folders)
+        {
+            if (f.Id == id)
+            {
+                f.Name = name;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool ProjectManager::RemoveFolder(const std::wstring& id)
+    {
+        auto it = std::find_if(_folders.begin(), _folders.end(),
+                               [&id](const ProjectFolder& f) { return f.Id == id; });
+        if (it == _folders.end())
+        {
+            return false;
+        }
+        _folders.erase(it);
+
+        // Member projects move to root — they are NOT deleted
+        for (auto& p : _projects)
+        {
+            if (p.FolderId == id) p.FolderId.clear();
+        }
+        return true;
+    }
+
+    bool ProjectManager::MoveProjectToFolder(const std::wstring& projectId, const std::wstring& folderId)
+    {
+        if (!folderId.empty())
+        {
+            const bool folderExists = std::any_of(_folders.begin(), _folders.end(),
+                                                  [&folderId](const ProjectFolder& f) { return f.Id == folderId; });
+            if (!folderExists) return false;
+        }
+
+        for (auto& p : _projects)
+        {
+            if (p.Id == projectId)
+            {
+                p.FolderId = folderId;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void ProjectManager::ReorderProjects(const std::vector<std::wstring>& orderedIds)
+    {
+        std::unordered_map<std::wstring, uint32_t> newOrder;
+        uint32_t next = 0;
+
+        for (const auto& id : orderedIds)
+        {
+            if (newOrder.count(id)) continue;
+            const bool exists = std::any_of(_projects.begin(), _projects.end(),
+                                            [&id](const Project& p) { return p.Id == id; });
+            if (exists) newOrder[id] = next++;
+        }
+
+        // Projects not listed keep their relative order, appended after
+        std::vector<const Project*> rest;
+        for (const auto& p : _projects)
+        {
+            if (!newOrder.count(p.Id)) rest.push_back(&p);
+        }
+        std::stable_sort(rest.begin(), rest.end(),
+                         [](const Project* a, const Project* b) { return a->Order < b->Order; });
+        for (const auto* p : rest) newOrder[p->Id] = next++;
+
+        for (auto& p : _projects) p.Order = newOrder[p.Id];
+    }
+
+    void ProjectManager::ReorderFolders(const std::vector<std::wstring>& orderedIds)
+    {
+        std::unordered_map<std::wstring, uint32_t> newOrder;
+        uint32_t next = 0;
+
+        for (const auto& id : orderedIds)
+        {
+            if (newOrder.count(id)) continue;
+            const bool exists = std::any_of(_folders.begin(), _folders.end(),
+                                            [&id](const ProjectFolder& f) { return f.Id == id; });
+            if (exists) newOrder[id] = next++;
+        }
+
+        std::vector<const ProjectFolder*> rest;
+        for (const auto& f : _folders)
+        {
+            if (!newOrder.count(f.Id)) rest.push_back(&f);
+        }
+        std::stable_sort(rest.begin(), rest.end(),
+                         [](const ProjectFolder* a, const ProjectFolder* b) { return a->Order < b->Order; });
+        for (const auto* f : rest) newOrder[f->Id] = next++;
+
+        for (auto& f : _folders) f.Order = newOrder[f.Id];
+    }
+
+    bool ProjectManager::SetFolderCollapsed(const std::wstring& id, bool collapsed)
+    {
+        for (auto& f : _folders)
+        {
+            if (f.Id == id)
+            {
+                f.Collapsed = collapsed;
+                return true;
+            }
+        }
+        return false;
     }
 
     std::vector<Project> ProjectManager::GetProjectsByType(ProjectType type) const
@@ -273,6 +425,25 @@ namespace ClickTerminal
         }
 
         _projects.clear();
+        _folders.clear();
+
+        // Grouping folders (tolerant: missing keys fall back to defaults)
+        const auto& folders = root["folders"];
+        for (const auto& fj : folders)
+        {
+            ProjectFolder folder;
+            folder.Id        = NarrowToWide(fj.get("id", "").asString());
+            folder.Name      = NarrowToWide(fj.get("name", "").asString());
+            folder.Order     = fj.get("order", 0).asUInt();
+            folder.Collapsed = fj.get("collapsed", false).asBool();
+            if (!folder.Id.empty())
+            {
+                _folders.push_back(std::move(folder));
+            }
+        }
+
+        bool anyProjectHasOrder = false;
+        uint32_t projectIndex = 0;
 
         const auto& projects = root["projects"];
         for (const auto& pj : projects)
@@ -287,6 +458,18 @@ namespace ClickTerminal
             project.CreatedAt   = NarrowToWide(pj.get("createdAt", "").asString());
             project.LastOpenedAt = NarrowToWide(pj.get("lastOpenedAt", "").asString());
             project.TerminalProfileGuid = NarrowToWide(pj.get("terminalProfile", "").asString());
+
+            // Ordering / grouping (tolerant: missing order -> array index, missing folderId -> root)
+            if (pj.isMember("order"))
+            {
+                project.Order = pj["order"].asUInt();
+                anyProjectHasOrder = true;
+            }
+            else
+            {
+                project.Order = projectIndex;
+            }
+            project.FolderId = NarrowToWide(pj.get("folderId", "").asString());
 
             const auto& typeStr = pj.get("type", "web").asString();
             if (typeStr == "app") project.Type = ProjectType::App;
@@ -357,6 +540,19 @@ namespace ClickTerminal
             }
 
             _projects.push_back(std::move(project));
+            ++projectIndex;
+        }
+
+        // Migration: legacy file (no project has an "order" key).
+        // Back up the original once as clickterminal.json.bak, then keep the
+        // array-index order already assigned above. Next SaveProjects() persists it.
+        if (!anyProjectHasOrder && !_projects.empty() && !_configPath.empty())
+        {
+            const std::wstring bakPath = _configPath + L".bak";
+            if (!std::filesystem::exists(bakPath))
+            {
+                CopyFileW(_configPath.c_str(), bakPath.c_str(), TRUE /*bFailIfExists*/);
+            }
         }
 
         return true;
@@ -380,6 +576,9 @@ namespace ClickTerminal
             if (p.Type == ProjectType::App) typeStr = "app";
             else if (p.Type == ProjectType::AIWorkflow) typeStr = "ai-workflow";
             pj["type"] = typeStr;
+
+            pj["order"] = p.Order;
+            if (!p.FolderId.empty()) pj["folderId"] = WideToNarrow(p.FolderId);
 
             if (!p.DevUrl.empty())    pj["devUrl"]    = WideToNarrow(p.DevUrl);
             if (!p.DeployUrl.empty()) pj["deployUrl"] = WideToNarrow(p.DeployUrl);
@@ -462,6 +661,18 @@ namespace ClickTerminal
 
         root["projects"] = projects;
 
+        Json::Value folders(Json::arrayValue);
+        for (const auto& f : _folders)
+        {
+            Json::Value fj;
+            fj["id"]        = WideToNarrow(f.Id);
+            fj["name"]      = WideToNarrow(f.Name);
+            fj["order"]     = f.Order;
+            fj["collapsed"] = f.Collapsed;
+            folders.append(fj);
+        }
+        root["folders"] = folders;
+
         Json::StreamWriterBuilder writerBuilder;
         writerBuilder["indentation"] = "    ";
         return Json::writeString(writerBuilder, root);
@@ -487,6 +698,19 @@ namespace ClickTerminal
 
         wchar_t buf[48];
         swprintf_s(buf, L"proj-%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                   guid.Data1, guid.Data2, guid.Data3,
+                   guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+                   guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+        return buf;
+    }
+
+    std::wstring ProjectManager::GenerateFolderId()
+    {
+        GUID guid{};
+        CoCreateGuid(&guid);
+
+        wchar_t buf[48];
+        swprintf_s(buf, L"folder-%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
                    guid.Data1, guid.Data2, guid.Data3,
                    guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
                    guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);

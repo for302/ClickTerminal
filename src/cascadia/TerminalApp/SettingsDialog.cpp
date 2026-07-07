@@ -33,6 +33,51 @@ namespace
         if (h.size() == 8) return { uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
         return { 0xFF, 0x40, 0x40, 0x40 };
     }
+
+    // Strict parse: returns false (and leaves `out` untouched) unless hex is a
+    // valid "#RRGGBB"/"RRGGBB" — used where invalid edits must be ignored.
+    static bool TryParseHexColor(const std::wstring& hex, winrt::Windows::UI::Color& out)
+    {
+        const auto v = ClickTerminal::ParseThemeHex(hex, 0);
+        if (v == 0) return false; // valid results always carry 0xFF alpha
+        out = { uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v) };
+        return true;
+    }
+
+    // Field-name → CTuxThemeColors member lookup (shared by editor/preview/picker)
+    static std::wstring* ColorFieldPtr(ClickTerminal::CTuxThemeColors& c, const std::wstring& name)
+    {
+        if (name == L"SidebarBg")        return &c.SidebarBg;
+        if (name == L"SidebarHeaderBg")  return &c.SidebarHeaderBg;
+        if (name == L"SidebarText")      return &c.SidebarText;
+        if (name == L"SidebarTextMuted") return &c.SidebarTextMuted;
+        if (name == L"TabBarBg")         return &c.TabBarBg;
+        if (name == L"DialogBg")         return &c.DialogBg;
+        if (name == L"DialogNavBg")      return &c.DialogNavBg;
+        if (name == L"PaneHeaderBg")     return &c.PaneHeaderBg;
+        if (name == L"PaneHeaderText")   return &c.PaneHeaderText;
+        if (name == L"PaneHeaderAccent") return &c.PaneHeaderAccent;
+        if (name == L"ExitOverlayBg")    return &c.ExitOverlayBg;
+        if (name == L"PaneBorder")       return &c.PaneBorder;
+        return nullptr;
+    }
+
+    // Color field ↔ preview region element (x:Name) mapping
+    struct PreviewRegion { const wchar_t* field; const wchar_t* element; };
+    static constexpr PreviewRegion kPreviewRegions[] = {
+        { L"SidebarBg",        L"PrevSidebar" },
+        { L"SidebarHeaderBg",  L"PrevSidebarHeader" },
+        { L"SidebarText",      L"PrevSidebarText" },
+        { L"SidebarTextMuted", L"PrevSidebarTextMuted" },
+        { L"TabBarBg",         L"PrevTabBar" },
+        { L"PaneHeaderBg",     L"PrevPaneHeader" },
+        { L"PaneHeaderText",   L"PrevPaneHeaderText" },
+        { L"PaneHeaderAccent", L"PrevPaneHeaderAccent" },
+        { L"ExitOverlayBg",    L"PrevExitOverlay" },
+        { L"PaneBorder",       L"PrevPaneBorder" },
+        { L"DialogBg",         L"PrevDialog" },
+        { L"DialogNavBg",      L"PrevDialogNav" },
+    };
 }
 
 namespace winrt::TerminalApp::implementation
@@ -204,7 +249,10 @@ namespace winrt::TerminalApp::implementation
             bool isCustom = !_editingTheme.IsBuiltIn;
             DeleteThemeBtn().IsEnabled(isCustom);
             ColorEditorPanel().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
+            ThemeColorPicker().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
             if (isCustom) _LoadColorEditor(_editingTheme);
+            _UpdatePreview();
+            _SelectColorField(_selectedColorField);
         }
     }
 
@@ -223,7 +271,10 @@ namespace winrt::TerminalApp::implementation
         bool isCustom = !_editingTheme.IsBuiltIn;
         DeleteThemeBtn().IsEnabled(isCustom);
         ColorEditorPanel().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
+        ThemeColorPicker().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
         if (isCustom) _LoadColorEditor(_editingTheme);
+        _UpdatePreview();
+        _SelectColorField(_selectedColorField);
     }
 
     void SettingsDialog::_AddThemeClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
@@ -259,7 +310,10 @@ namespace winrt::TerminalApp::implementation
         _editingTheme = newTheme;
         DeleteThemeBtn().IsEnabled(true);
         ColorEditorPanel().Visibility(Visibility::Visible);
+        ThemeColorPicker().Visibility(Visibility::Visible);
         _LoadColorEditor(_editingTheme);
+        _UpdatePreview();
+        _SelectColorField(_selectedColorField);
     }
 
     void SettingsDialog::_DeleteThemeClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
@@ -281,7 +335,10 @@ namespace winrt::TerminalApp::implementation
             bool isCustom = !_editingTheme.IsBuiltIn;
             DeleteThemeBtn().IsEnabled(isCustom);
             ColorEditorPanel().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
+            ThemeColorPicker().Visibility(isCustom ? Visibility::Visible : Visibility::Collapsed);
             if (isCustom) _LoadColorEditor(_editingTheme);
+            _UpdatePreview();
+            _SelectColorField(_selectedColorField);
         }
     }
 
@@ -301,6 +358,11 @@ namespace winrt::TerminalApp::implementation
         ColorTabBarBg().Text(hstring{ c.TabBarBg });
         ColorDialogBg().Text(hstring{ c.DialogBg });
         ColorDialogNavBg().Text(hstring{ c.DialogNavBg });
+        ColorPaneHeaderBg().Text(hstring{ c.PaneHeaderBg });
+        ColorPaneHeaderText().Text(hstring{ c.PaneHeaderText });
+        ColorPaneHeaderAccent().Text(hstring{ c.PaneHeaderAccent });
+        ColorExitOverlayBg().Text(hstring{ c.ExitOverlayBg });
+        ColorPaneBorder().Text(hstring{ c.PaneBorder });
 
         _UpdateSwatch(L"SidebarBg",        c.SidebarBg);
         _UpdateSwatch(L"SidebarHeaderBg",  c.SidebarHeaderBg);
@@ -309,6 +371,11 @@ namespace winrt::TerminalApp::implementation
         _UpdateSwatch(L"TabBarBg",         c.TabBarBg);
         _UpdateSwatch(L"DialogBg",         c.DialogBg);
         _UpdateSwatch(L"DialogNavBg",      c.DialogNavBg);
+        _UpdateSwatch(L"PaneHeaderBg",     c.PaneHeaderBg);
+        _UpdateSwatch(L"PaneHeaderText",   c.PaneHeaderText);
+        _UpdateSwatch(L"PaneHeaderAccent", c.PaneHeaderAccent);
+        _UpdateSwatch(L"ExitOverlayBg",    c.ExitOverlayBg);
+        _UpdateSwatch(L"PaneBorder",       c.PaneBorder);
 
         // Select terminal scheme
         auto scheme = c.TerminalScheme;
@@ -343,17 +410,125 @@ namespace winrt::TerminalApp::implementation
         auto hex = std::wstring{ tb.Text() };
         if (!hex.empty() && hex[0] != L'#') hex = L"#" + hex;
 
-        _UpdateSwatch(tag, hex);
+        _ApplyColorEdit(tag, hex, /*updateTextBox*/ false, /*updatePicker*/ true);
+    }
 
-        // Update _editingTheme colors
-        auto& c = _editingTheme.Colors;
-        if      (tag == L"SidebarBg")        c.SidebarBg        = hex;
-        else if (tag == L"SidebarHeaderBg")  c.SidebarHeaderBg  = hex;
-        else if (tag == L"SidebarText")      c.SidebarText      = hex;
-        else if (tag == L"SidebarTextMuted") c.SidebarTextMuted = hex;
-        else if (tag == L"TabBarBg")         c.TabBarBg         = hex;
-        else if (tag == L"DialogBg")         c.DialogBg         = hex;
-        else if (tag == L"DialogNavBg")      c.DialogNavBg      = hex;
+    // -----------------------------------------------------------------------
+    // Layout preview + color picker
+    // -----------------------------------------------------------------------
+    const ClickTerminal::CTuxThemeColors& SettingsDialog::_DisplayedColors() const
+    {
+        // _editingTheme always mirrors the selected theme (built-in or custom)
+        return _editingTheme.Colors;
+    }
+
+    // Central edit path: writes the color into _editingTheme, then refreshes
+    // swatch / (optionally) hex TextBox / preview / (optionally) picker.
+    void SettingsDialog::_ApplyColorEdit(const std::wstring& fieldName, const std::wstring& hexColor,
+                                         bool updateTextBox, bool updatePicker)
+    {
+        if (fieldName.empty()) return;
+
+        if (auto* field = ColorFieldPtr(_editingTheme.Colors, fieldName))
+            *field = hexColor;
+
+        _UpdateSwatch(fieldName, hexColor);
+
+        if (updateTextBox)
+        {
+            try
+            {
+                if (auto tb = FindName(hstring{ L"Color" + fieldName }).try_as<TextBox>())
+                    tb.Text(hstring{ hexColor });
+            }
+            catch (...) {}
+        }
+
+        _UpdatePreview();
+
+        if (updatePicker && fieldName == _selectedColorField)
+            _SyncPickerToSelectedField();
+    }
+
+    void SettingsDialog::_UpdatePreview()
+    {
+        try
+        {
+            auto colors = _DisplayedColors(); // copy — ColorFieldPtr needs non-const
+            for (const auto& region : kPreviewRegions)
+            {
+                auto border = FindName(hstring{ region.element }).try_as<Border>();
+                if (!border) continue;
+                const auto* value = ColorFieldPtr(colors, region.field);
+                winrt::Windows::UI::Color c{};
+                if (value && TryParseHexColor(*value, c))
+                    border.Background(SolidColorBrush{ c }); // invalid hex → keep last valid
+            }
+        }
+        catch (...) {}
+    }
+
+    void SettingsDialog::_SelectColorField(const std::wstring& fieldName)
+    {
+        if (!fieldName.empty())
+            _selectedColorField = fieldName;
+
+        try
+        {
+            // Selection marker: orange, deliberately outside the theme palette
+            const SolidColorBrush accent{ winrt::Windows::UI::Color{ 0xFF, 0xFF, 0x8C, 0x00 } };
+            const SolidColorBrush transparent{ winrt::Windows::UI::Colors::Transparent() };
+            for (const auto& region : kPreviewRegions)
+            {
+                auto border = FindName(hstring{ region.element }).try_as<Border>();
+                if (border)
+                    border.BorderBrush(_selectedColorField == region.field ? accent : transparent);
+            }
+        }
+        catch (...) {}
+
+        _SyncPickerToSelectedField();
+    }
+
+    void SettingsDialog::_SyncPickerToSelectedField()
+    {
+        try
+        {
+            auto colors = _DisplayedColors();
+            const auto* value = ColorFieldPtr(colors, _selectedColorField);
+            winrt::Windows::UI::Color c{};
+            if (!value || !TryParseHexColor(*value, c)) return;
+            _suppressPickerChange = true;
+            ThemeColorPicker().Color(c);
+        }
+        catch (...) {}
+        _suppressPickerChange = false;
+    }
+
+    void SettingsDialog::_PreviewRegionTapped(const IInspectable& sender,
+                                              const winrt::Windows::UI::Xaml::Input::TappedRoutedEventArgs& e)
+    {
+        // Stop bubbling so nested regions (e.g. header inside sidebar) don't
+        // immediately get overridden by their parent region.
+        e.Handled(true);
+
+        auto fe = sender.try_as<FrameworkElement>();
+        if (!fe) return;
+        auto tag = std::wstring{ unbox_value_or<hstring>(fe.Tag(), L"") };
+        if (tag.empty()) return;
+        _SelectColorField(tag);
+    }
+
+    void SettingsDialog::_PickerColorChanged(const IInspectable& /*sender*/,
+                                             const winrt::Microsoft::UI::Xaml::Controls::ColorChangedEventArgs& args)
+    {
+        if (_suppressPickerChange) return;
+        if (_editingTheme.IsBuiltIn) return; // built-ins are read-only
+
+        const auto c = args.NewColor();
+        wchar_t buf[8];
+        swprintf_s(buf, L"#%02X%02X%02X", c.R, c.G, c.B);
+        _ApplyColorEdit(_selectedColorField, buf, /*updateTextBox*/ true, /*updatePicker*/ false);
     }
 
     void SettingsDialog::_SyncEditingTheme()

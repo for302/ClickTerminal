@@ -39,6 +39,8 @@ namespace winrt::TerminalApp::implementation
         // XAML event handlers must be public
         safe_void_coroutine _AddProjectClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                                const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
+        safe_void_coroutine _OrganizeClicked(const winrt::Windows::Foundation::IInspectable& sender,
+                                             const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
         safe_void_coroutine _SettingsClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                              const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
 
@@ -54,6 +56,7 @@ namespace winrt::TerminalApp::implementation
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingSettingsOp{ nullptr };
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingAddProjectOp{ nullptr };
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingEditOp{ nullptr };
+        winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> _pendingOrganizeOp{ nullptr };
 
         void _BuildProjectList();
         void _BuildLayoutSection();

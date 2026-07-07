@@ -52,12 +52,25 @@ namespace ClickTerminal
         AIToolInvocationConfig Gemini;
     };
 
+    // Sidebar grouping folder (not a filesystem folder)
+    struct ProjectFolder
+    {
+        std::wstring Id;            // "folder-{uuid}" (dialog may use temporary "new-N" ids)
+        std::wstring Name;
+        uint32_t     Order{ 0 };
+        bool         Collapsed{ false };
+    };
+
     struct Project
     {
         std::wstring              Id;          // "proj-{uuid}"
         std::wstring              Name;
         ProjectType               Type{ ProjectType::Web };
         std::wstring              FolderPath;
+
+        // Sidebar ordering / grouping
+        uint32_t                  Order{ 0 };
+        std::wstring              FolderId;    // empty = root (no folder)
 
         // Terminal
         std::wstring              ColorScheme;
@@ -132,6 +145,16 @@ namespace ClickTerminal
         std::vector<Project>        GetProjectsByType(ProjectType type) const;
         ProjectResult<bool>         TouchProject(const std::wstring& id);
 
+        // Folders / ordering
+        std::vector<ProjectFolder>  GetFolders() const;                      // Order asc
+        ProjectFolder               AddFolder(const std::wstring& name);     // Id = "folder-{uuid}", Order = max+1
+        bool                        RenameFolder(const std::wstring& id, const std::wstring& name);
+        bool                        RemoveFolder(const std::wstring& id);    // member projects move to root (not deleted)
+        bool                        MoveProjectToFolder(const std::wstring& projectId, const std::wstring& folderId);
+        void                        ReorderProjects(const std::vector<std::wstring>& orderedIds); // listed ids -> 0..N, rest keep relative order after
+        void                        ReorderFolders(const std::vector<std::wstring>& orderedIds);  // same semantics for folders
+        bool                        SetFolderCollapsed(const std::wstring& id, bool collapsed);
+
         // Auto-detect projects from search paths (looks for .git, package.json, *.sln)
         std::vector<Project>        AutoDetectProjects(
                                         const std::vector<std::wstring>& searchPaths,
@@ -145,9 +168,10 @@ namespace ClickTerminal
         std::function<void()> OnProjectsChanged;
 
     private:
-        std::wstring         _configPath;
-        std::vector<Project> _projects;
-        bool                 _loaded{ false };
+        std::wstring               _configPath;
+        std::vector<Project>       _projects;
+        std::vector<ProjectFolder> _folders;
+        bool                       _loaded{ false };
 
         bool        DeserializeFromJson(const std::string& json);
         std::string SerializeToJson() const;
@@ -156,6 +180,7 @@ namespace ClickTerminal
         bool WriteFileAtomic(const std::wstring& path, const std::string& content);
 
         static std::wstring GenerateProjectId();    // CoCreateGuid -> "proj-{uuid}"
+        static std::wstring GenerateFolderId();     // CoCreateGuid -> "folder-{uuid}"
         static std::wstring GetDefaultConfigPath(); // same folder as settings.json
     };
 
