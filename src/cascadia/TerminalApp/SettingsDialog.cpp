@@ -5,10 +5,16 @@
 #include "SettingsDialog.h"
 #include "SettingsDialog.g.cpp"
 #include "CTuxSettings.h"
+#include "CTuxVersion.h"
 #include <filesystem>
+#include <fstream>
 #include <ShlObj.h>
 #include <shobjidl.h>
 #include <winrt/Windows.UI.Xaml.Shapes.h>
+#include <winrt/Windows.Web.Http.h>
+#include <winrt/Windows.Web.Http.Headers.h>
+#include <winrt/Windows.Data.Json.h>
+#include <winrt/Windows.Storage.Streams.h>
 
 using namespace winrt;
 using namespace winrt::Windows::Foundation;
@@ -96,6 +102,11 @@ namespace winrt::TerminalApp::implementation
             _allThemes.push_back(ct);
 
         _PopulateThemeCombo();
+
+        if (const auto build = ClickTerminal::CurrentVersionBuild(); build != 0)
+        {
+            UpdateStatusText().Text(hstring{ L"Installed " + ClickTerminal::FormatVersion(build) + L"." });
+        }
 
         NavList().SelectedIndex(0);
     }
@@ -602,8 +613,187 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    // ---- Updates ------------------------------------------------------------
+    //
+    // One button, three jobs. Idle asks GitHub for the newest release; if that
+    // release is newer than the installed package the button turns into a
+    // download button, and the download hands off to ClickTerminal-Setup.exe,
+    // which shuts this app down and upgrades it in place.
+
+    void SettingsDialog::_SetUpdateIdle(const std::wstring& status)
+    {
+        _updateState = UpdateState::Idle;
+        CheckUpdateBtn().Content(winrt::box_value(winrt::hstring{ L"Check for Updates" }));
+        CheckUpdateBtn().IsEnabled(true);
+        UpdateStatusText().Text(winrt::hstring{ status });
+    }
+
     void SettingsDialog::_CheckUpdateClicked(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
     {
-        UpdateStatusText().Text(L"Update check — coming soon.");
+        switch (_updateState)
+        {
+        case UpdateState::Idle:
+            _RunUpdateCheck();
+            break;
+        case UpdateState::Available:
+            _RunUpdateDownload();
+            break;
+        default:
+            break; // a check or download is already in flight
+        }
+    }
+
+    winrt::fire_and_forget SettingsDialog::_RunUpdateCheck()
+    {
+        auto strongThis{ get_strong() };
+
+        _updateState = UpdateState::Checking;
+        CheckUpdateBtn().IsEnabled(false);
+        UpdateStatusText().Text(L"Checking for updates...");
+
+        const auto current = ClickTerminal::CurrentVersionBuild();
+
+        std::wstring tag;
+        std::wstring url;
+        std::wstring error;
+
+        co_await winrt::resume_background();
+        try
+        {
+            winrt::Windows::Web::Http::HttpClient client;
+            // GitHub rejects API requests that arrive without a User-Agent.
+            client.DefaultRequestHeaders().UserAgent().Append(
+                winrt::Windows::Web::Http::Headers::HttpProductInfoHeaderValue{ L"ClickTerminal", L"1.0" });
+
+            const auto body = co_await client.GetStringAsync(
+                winrt::Windows::Foundation::Uri{ winrt::hstring{ ClickTerminal::LatestReleaseApiUrl } });
+
+            const auto release = winrt::Windows::Data::Json::JsonObject::Parse(body);
+            tag = release.GetNamedString(L"tag_name", L"");
+
+            if (release.HasKey(L"assets"))
+            {
+                for (const auto& entry : release.GetNamedArray(L"assets"))
+                {
+                    const auto asset = entry.GetObject();
+                    if (asset.GetNamedString(L"name", L"") == winrt::hstring{ ClickTerminal::SetupAssetName })
+                    {
+                        url = asset.GetNamedString(L"browser_download_url", L"");
+                        break;
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+            error = L"Update check failed - check your connection.";
+        }
+
+        co_await winrt::resume_foreground(Dispatcher());
+
+        if (!error.empty())
+        {
+            _SetUpdateIdle(error);
+            co_return;
+        }
+
+        const auto latest = ClickTerminal::ParseVersionTag(tag);
+        if (latest == 0)
+        {
+            _SetUpdateIdle(L"Could not read the latest version from GitHub.");
+            co_return;
+        }
+
+        if (current == 0)
+        {
+            // Unpackaged dev run - there is no installed version to compare against.
+            _SetUpdateIdle(L"Latest release is " + ClickTerminal::FormatVersion(latest) +
+                           L" (running unpackaged, no update available).");
+            co_return;
+        }
+
+        if (latest <= current)
+        {
+            _SetUpdateIdle(L"Up to date (" + ClickTerminal::FormatVersion(current) + L").");
+            co_return;
+        }
+
+        if (url.empty())
+        {
+            _SetUpdateIdle(ClickTerminal::FormatVersion(latest) +
+                           L" is available, but it has no installer attached.");
+            co_return;
+        }
+
+        _updateTag = ClickTerminal::FormatVersion(latest);
+        _updateDownloadUrl = url;
+        _updateState = UpdateState::Available;
+        CheckUpdateBtn().Content(winrt::box_value(winrt::hstring{ L"Download && Install " + _updateTag }));
+        CheckUpdateBtn().IsEnabled(true);
+        UpdateStatusText().Text(winrt::hstring{ _updateTag + L" is available (installed " +
+                                                ClickTerminal::FormatVersion(current) + L")." });
+    }
+
+    winrt::fire_and_forget SettingsDialog::_RunUpdateDownload()
+    {
+        auto strongThis{ get_strong() };
+
+        _updateState = UpdateState::Downloading;
+        CheckUpdateBtn().IsEnabled(false);
+        UpdateStatusText().Text(L"Downloading installer...");
+
+        const auto url = _updateDownloadUrl;
+        const auto tag = _updateTag;
+
+        std::wstring setupPath;
+        std::wstring error;
+
+        co_await winrt::resume_background();
+        try
+        {
+            winrt::Windows::Web::Http::HttpClient client;
+            client.DefaultRequestHeaders().UserAgent().Append(
+                winrt::Windows::Web::Http::Headers::HttpProductInfoHeaderValue{ L"ClickTerminal", L"1.0" });
+
+            const auto buffer = co_await client.GetBufferAsync(winrt::Windows::Foundation::Uri{ winrt::hstring{ url } });
+
+            wchar_t tempDir[MAX_PATH]{};
+            if (::GetTempPathW(MAX_PATH, tempDir) == 0)
+            {
+                throw std::runtime_error("no temp path");
+            }
+            setupPath = std::wstring{ tempDir } + L"ClickTerminal-Setup-" + tag + L".exe";
+
+            std::vector<uint8_t> bytes(buffer.Length());
+            winrt::Windows::Storage::Streams::DataReader::FromBuffer(buffer).ReadBytes(bytes);
+
+            std::ofstream file{ setupPath, std::ios::binary | std::ios::trunc };
+            file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            file.close();
+            if (!file)
+            {
+                throw std::runtime_error("write failed");
+            }
+        }
+        catch (...)
+        {
+            error = L"Download failed - try again, or grab the installer from GitHub.";
+            setupPath.clear();
+        }
+
+        co_await winrt::resume_foreground(Dispatcher());
+
+        if (!error.empty())
+        {
+            // Keep the download offer up so the user can retry.
+            _updateState = UpdateState::Available;
+            CheckUpdateBtn().IsEnabled(true);
+            UpdateStatusText().Text(winrt::hstring{ error });
+            co_return;
+        }
+
+        UpdateStatusText().Text(L"Starting installer - ClickTerminal will close and reopen.");
+        ::ShellExecuteW(nullptr, L"open", setupPath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        Hide();
     }
 }

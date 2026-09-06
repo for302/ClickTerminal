@@ -1,4 +1,4 @@
-# Self-elevate to admin if needed
+﻿# Self-elevate to admin if needed
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell -Verb RunAs -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
@@ -45,7 +45,7 @@ if (Test-Path $dllBin) {
 Write-Host ""
 
 # ---- Step 1: Build ----
-Write-Host "[1/5] Building TerminalApp.dll..." -ForegroundColor Cyan
+Write-Host "[1/6] Building TerminalApp.dll..." -ForegroundColor Cyan
 $buildStartTime = Get-Date
 & $msbuild $vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" /t:Build /m /nologo /verbosity:minimal
 if ($LASTEXITCODE -ne 0) {
@@ -64,13 +64,37 @@ if ($dllAfterBuild -and $dllAfterBuild.LastWriteTime -lt $buildStartTime) {
 }
 
 # ---- Step 2: Copy DLL ----
-Write-Host "[2/5] Copying DLL to pkg..." -ForegroundColor Cyan
+Write-Host "[2/6] Copying DLL to pkg..." -ForegroundColor Cyan
 Copy-Item "$binDir\TerminalApp.dll"   "$pkgDir\TerminalApp.dll"   -Force
 Copy-Item "$binDir\TerminalApp.winmd" "$pkgDir\TerminalApp.winmd" -Force
 Write-Host "      DLL copied" -ForegroundColor Green
 
-# ---- Step 3: Regenerate resources.pri ----
-Write-Host "[3/5] Regenerating resources.pri..." -ForegroundColor Cyan
+# ---- Step 3: Sync package version with the authored CTux version ----
+# TabRowControl.xaml is where the version is authored; the manifest has to carry
+# the same number as 0.0.NN.0 or Add-AppxPackage sees no upgrade and the in-app
+# updater has nothing to compare against.
+Write-Host "[3/6] Syncing package version..." -ForegroundColor Cyan
+$xamlPath = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\TabRowControl.xaml"
+$verMatch = [regex]::Match((Get-Content $xamlPath -Raw), 'CTux v(\d+)\.(\d+)')
+if (-not $verMatch.Success) {
+    Write-Host "      Could not find 'CTux v0.0NN' in TabRowControl.xaml - leaving manifest alone" -ForegroundColor Yellow
+} else {
+    $major = [int]$verMatch.Groups[1].Value
+    $build = [int]$verMatch.Groups[2].Value
+    $pkgVersion = "$major.0.$build.0"
+    $manifestText = [System.IO.File]::ReadAllText($manifest)
+    $updated = [regex]::Replace($manifestText, '(<Identity[^>]*?\bVersion=")[^"]*(")', "`${1}$pkgVersion`${2}")
+    if ($updated -eq $manifestText) {
+        Write-Host "      Version already $pkgVersion" -ForegroundColor Green
+    } else {
+        # AppxManifest.xml ships with a UTF-8 BOM - keep it.
+        [System.IO.File]::WriteAllText($manifest, $updated, (New-Object System.Text.UTF8Encoding $true))
+        Write-Host "      Manifest version -> $pkgVersion (CTux v$major.$($build.ToString('000')))" -ForegroundColor Green
+    }
+}
+
+# ---- Step 4: Regenerate resources.pri ----
+Write-Host "[4/6] Regenerating resources.pri..." -ForegroundColor Cyan
 if (-not (Test-Path $priConfig)) {
     Write-Host "      priconfig.xml not found at: $priConfig" -ForegroundColor Red
     Write-Host "      Skipping pri regeneration (may cause XBF mismatch)" -ForegroundColor Yellow
@@ -85,14 +109,14 @@ if (-not (Test-Path $priConfig)) {
     }
 }
 
-# ---- Step 4: Remove old signature files ----
-Write-Host "[4/5] Cleaning signature files..." -ForegroundColor Cyan
+# ---- Step 5: Remove old signature files ----
+Write-Host "[5/6] Cleaning signature files..." -ForegroundColor Cyan
 Remove-Item "$pkgDir\AppxSignature.p7x" -ErrorAction SilentlyContinue
 Remove-Item "$pkgDir\AppxBlockMap.xml"  -ErrorAction SilentlyContinue
 Write-Host "      Cleaned" -ForegroundColor Green
 
-# ---- Step 5: Trust certificate + Install ----
-Write-Host "[5/5] Installing package..." -ForegroundColor Cyan
+# ---- Step 6: Trust certificate + Install ----
+Write-Host "[6/6] Installing package..." -ForegroundColor Cyan
 
 # Trust signing certificate before install (required for MSIX path)
 $cerCandidates = @(

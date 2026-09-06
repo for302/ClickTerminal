@@ -16,7 +16,46 @@
 - 대화 세션 중 여러 수정이 있어도 배포 시점 기준으로 한 번 올리면 됨
 - Claude는 작업 완료 후 배포 전에 버전을 올렸는지 **항상 확인하고 언급**한다
 
-**현재 버전**: v0.040
+**현재 버전**: v0.041
+
+### 버전은 한 곳에만 적는다 — 나머지는 자동 동기화
+
+`TabRowControl.xaml`의 `CTux v0.0NN` 이 유일한 원본이다. 여기만 고치면 나머지는 따라온다:
+
+```
+TabRowControl.xaml  "CTux v0.041"
+        |  _build_and_deploy.ps1 [3/6] 이 파싱
+        v
+AppxManifest.xml    Version="0.0.41.0"
+        |  설치 후 Package::Current().Id().Version().Build
+        v
+탭바 라벨 · 설정창 "Installed v0.041" · 인앱 업데이트 비교값
+```
+
+- 런타임 코드는 XAML 리터럴이 아니라 **설치된 패키지 버전**을 읽는다
+  (`src/ClickTerminal/CTuxVersion.h` 의 `CurrentVersionBuild()`).
+  그래서 패키징 때 버전 동기화를 빼먹으면 탭바에 옛 버전이 그대로 보인다 — 조용히 넘어가지 않는다.
+- **매니페스트 버전을 안 올리면 `Add-AppxPackage`가 업그레이드로 보지 않는다.**
+  기존 배포 스크립트는 매번 제거 후 재설치라 이 문제가 드러나지 않았지만,
+  인앱 업데이트는 덮어쓰기 업그레이드라서 버전이 반드시 올라가야 한다.
+
+### 인앱 업데이트 (설정창 → Updates)
+
+`SettingsDialog`의 버튼 하나가 상태에 따라 세 가지로 동작한다
+(`Idle` → `Checking` → `Available` → `Downloading`).
+
+1. `https://api.github.com/repos/for302/ClickTerminal/releases/latest` 조회
+   (**User-Agent 헤더 필수** — 없으면 GitHub이 거부한다)
+2. `tag_name`(`v0.041`)의 마지막 마디를 설치된 패키지의 `Version.Build`와 비교
+3. 새 버전이 있으면 `ClickTerminal-Setup.exe` 에셋을 `%TEMP%`로 내려받아 실행
+
+`internetClient` capability는 매니페스트에 이미 들어 있다. 새 릴리스를 올릴 때
+**에셋 파일명은 반드시 `ClickTerminal-Setup.exe`** 여야 한다 (코드가 이름으로 찾는다).
+
+**Setup.exe는 실행 중인 앱 위에 덮어쓸 수 있어야 한다** — `_build_installer.ps1`이 굽는
+설치 로직은 `Add-AppxPackage -ForceApplicationShutdown`(실패 시 제거 후 재설치)을 쓰고,
+그 전에 자식 셸을 먼저 정리한다(0xe0434352 방지). `-ForceApplicationShutdown`을 빼면
+인앱 업데이트가 "패키지 사용 중" 오류로 조용히 실패한다.
 
 ---
 
@@ -90,11 +129,12 @@ MSBuild가 의존성 순서대로 자동으로 TerminalAppLib → TerminalApp �
 ### 재패키징 절차 (DLL 교체 후) — 반드시 이 순서 준수
 1. `_msix_extract\pkg\` 에 기존 MSIX 압축 해제 (최초 1회)
 2. `bin\x64\Release\TerminalApp\TerminalApp.dll` + `TerminalApp.winmd` 복사
-3. **resources.pri 재생성** (XBF 변경 시 필수 — 아래 참조)
-4. AppxSignature.p7x / AppxBlockMap.xml 삭제
-5. makeappx로 재패키징
-6. signtool로 서명 (PFX: `ClickTerminalDev.pfx`, 비밀번호: `ctuxdev`)
-7. `.bat` 설치 스크립트로 인증서 신뢰 등록 + Add-AppxPackage
+3. **AppxManifest.xml 버전 동기화** (`CTux v0.0NN` → `Version="0.0.NN.0"` — 아래 참조)
+4. **resources.pri 재생성** (XBF 변경 시 필수 — 아래 참조)
+5. AppxSignature.p7x / AppxBlockMap.xml 삭제
+6. makeappx로 재패키징
+7. signtool로 서명 (PFX: `ClickTerminalDev.pfx`, 비밀번호: `ctuxdev`)
+8. `.bat` 설치 스크립트로 인증서 신뢰 등록 + Add-AppxPackage
 
 ### resources.pri 재생성 — XAML 변경 시 필수
 **왜 필요한가**: `resources.pri`는 모든 XAML의 XBF 바이너리를 EmbeddedData(Base64)로 직접 내장한다.

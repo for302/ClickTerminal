@@ -5,6 +5,7 @@
 #include "TabRowControl.h"
 
 #include "TabRowControl.g.cpp"
+#include "CTuxVersion.h"
 #include <winrt/Windows.UI.Xaml.Shapes.h>
 
 using namespace winrt::Windows::ApplicationModel::DataTransfer;
@@ -24,6 +25,15 @@ namespace winrt::TerminalApp::implementation
     TabRowControl::TabRowControl()
     {
         InitializeComponent();
+
+        // Show the version that is actually installed rather than the literal in
+        // the .xaml, so a packaging step that skipped the version bump reads as a
+        // stale label instead of passing silently. Falls back to the literal when
+        // running unpackaged.
+        if (const auto build = ClickTerminal::CurrentVersionBuild(); build != 0)
+        {
+            CTuxHeaderText().Text(winrt::hstring{ L"CTux " + ClickTerminal::FormatVersion(build) });
+        }
     }
 
     // Method Description:

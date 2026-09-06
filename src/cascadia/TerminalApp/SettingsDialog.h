@@ -51,6 +51,25 @@ namespace winrt::TerminalApp::implementation
         std::vector<ClickTerminal::CTuxTheme> GetUpdatedCustomThemes();
 
     private:
+        // ---- Updates (GitHub releases) ----
+        // The single button walks Idle -> Checking -> Available -> Downloading;
+        // _CheckUpdateClicked just dispatches on the current state.
+        enum class UpdateState
+        {
+            Idle,
+            Checking,
+            Available,
+            Downloading,
+        };
+
+        winrt::fire_and_forget _RunUpdateCheck();
+        winrt::fire_and_forget _RunUpdateDownload();
+        void _SetUpdateIdle(const std::wstring& status);
+
+        UpdateState _updateState{ UpdateState::Idle };
+        std::wstring _updateDownloadUrl;
+        std::wstring _updateTag;
+
         void _PopulateThemeCombo();
         void _SyncEditingTheme();
         void _LoadColorEditor(const ClickTerminal::CTuxTheme& theme);

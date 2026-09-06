@@ -1,4 +1,4 @@
-# ClickTerminal Installer EXE Builder
+﻿# ClickTerminal Installer EXE Builder
 # Usage: powershell -ExecutionPolicy Bypass -File _build_installer.ps1
 
 $ErrorActionPreference = 'Stop'
@@ -73,8 +73,30 @@ class Setup {
             }
             Console.WriteLine("       OK");
 
-            Console.WriteLine(" [3/3] Installing ClickTerminal...");
-            RunPS("Get-AppxPackage -Name 'WindowsTerminalDev' | Remove-AppxPackage -EA SilentlyContinue; Start-Sleep 1; Add-AppxPackage '" + msix + "'");
+            Console.WriteLine(" [3/3] Installing ClickTerminal __VERSION__...");
+
+            // Kill the shells hosted by ClickTerminal BEFORE the package shuts down.
+            // Killing the ConPTY host first orphans pwsh, which then dies inside
+            // PSReadLine's ReadKey thread and pops a modal 0xe0434352 dialog.
+            // Only our own package's hosts - leave a stable Windows Terminal alone.
+            string killShells =
+                "$h = @((Get-Process -Name OpenConsole,WindowsTerminal -EA SilentlyContinue | " +
+                "Where-Object { $_.Path -like '*WindowsTerminalDev*' }).Id); " +
+                "if ($h.Count -gt 0) { Get-CimInstance Win32_Process -EA SilentlyContinue | " +
+                "Where-Object { $h -contains $_.ParentProcessId -and " +
+                "$_.Name -in @('pwsh.exe','powershell.exe','cmd.exe','wsl.exe','bash.exe') } | " +
+                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -EA SilentlyContinue }; " +
+                "Start-Sleep -Milliseconds 400 }";
+
+            // Upgrade in place so this works while ClickTerminal is running (that is
+            // how the in-app updater calls us). Falls back to remove+install when the
+            // upgrade is refused - e.g. reinstalling the same package version.
+            string install =
+                "try { Add-AppxPackage -Path '" + msix + "' -ForceApplicationShutdown -EA Stop } " +
+                "catch { Get-AppxPackage -Name WindowsTerminalDev | Remove-AppxPackage -EA SilentlyContinue; " +
+                "Start-Sleep -Seconds 2; Add-AppxPackage -Path '" + msix + "' -EA Stop }";
+
+            RunPS(killShells + "; " + install);
             Console.WriteLine("       OK");
 
             Console.WriteLine("\n Done! Launching ClickTerminal...\n");
@@ -113,6 +135,19 @@ class Setup {
     }
 }
 '@
+
+# Stamp the installer with the package version it carries, so the console output
+# and the file it writes are traceable back to a specific build.
+$manifestPath = "$root\_msix_extract\pkg\AppxManifest.xml"
+$display = "(unknown version)"
+if (Test-Path $manifestPath) {
+    $vm = [regex]::Match([System.IO.File]::ReadAllText($manifestPath), '<Identity[^>]*?\bVersion="(\d+)\.(\d+)\.(\d+)\.')
+    if ($vm.Success) {
+        $display = "v{0}.{1:000}" -f [int]$vm.Groups[1].Value, [int]$vm.Groups[3].Value
+    }
+}
+Write-Host "  Version: $display"
+$src = $src.Replace('__VERSION__', $display)
 
 $csPath = "$root\ClickTerminal-Setup.cs"
 [System.IO.File]::WriteAllText($csPath, $src, [System.Text.Encoding]::UTF8)
