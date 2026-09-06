@@ -51,7 +51,7 @@ ClickTerminal은 Microsoft Windows Terminal(`microsoft/terminal`) 오픈소스�
 ### 전체 루트
 
 ```
-D:\Dev\20_PC\ClickTerminal\
+D:\Dev\02_PC\ClickTerminal\
 ├── src/
 │   ├── cascadia/
 │   │   ├── TerminalApp/          ← WinUI 컴포넌트 (메인 작업 폴더)

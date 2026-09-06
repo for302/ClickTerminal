@@ -169,6 +169,7 @@
     <ClInclude Include="ProjectManager.h" />
     <ClInclude Include="AIToolManager.h" />
     <ClInclude Include="CTuxSettings.h" />
+    <ClInclude Include="CTuxClaudeStatusLine.h" />
     <ClInclude Include="HighlightedTextControl.h">
       <DependentUpon>HighlightedTextControl.idl</DependentUpon>
     </ClInclude>
@@ -308,6 +309,7 @@
     <ClCompile Include="ProjectManager.cpp" />
     <ClCompile Include="AIToolManager.cpp" />
     <ClCompile Include="CTuxSettingsManager.cpp" />
+    <ClCompile Include="CTuxClaudeStatusLine.cpp" />
     <ClCompile Include="HighlightedTextControl.cpp">
       <DependentUpon>HighlightedTextControl.idl</DependentUpon>
     </ClCompile>

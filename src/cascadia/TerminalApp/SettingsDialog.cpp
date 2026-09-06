@@ -6,6 +6,7 @@
 #include "SettingsDialog.g.cpp"
 #include "CTuxSettings.h"
 #include "CTuxVersion.h"
+#include "CTuxClaudeStatusLine.h"
 #include <filesystem>
 #include <fstream>
 #include <ShlObj.h>
@@ -102,6 +103,7 @@ namespace winrt::TerminalApp::implementation
             _allThemes.push_back(ct);
 
         _PopulateThemeCombo();
+        _LoadStatusLineState();
 
         if (const auto build = ClickTerminal::CurrentVersionBuild(); build != 0)
         {
@@ -619,6 +621,57 @@ namespace winrt::TerminalApp::implementation
     // release is newer than the installed package the button turns into a
     // download button, and the download hands off to ClickTerminal-Setup.exe,
     // which shuts this app down and upgrades it in place.
+
+    // -----------------------------------------------------------------------
+    // Claude Code status line
+    //
+    // Claude Code renders the bottom bar only when `statusLine` in
+    // ~/.claude/settings.json points at a command, so the toggle writes that
+    // file directly. That is outside the dialog's Save/Cancel scope, so it
+    // takes effect on flip and reports success or failure inline.
+    // -----------------------------------------------------------------------
+    void SettingsDialog::_LoadStatusLineState()
+    {
+        namespace SL = ClickTerminal::ClaudeStatusLine;
+
+        const bool on = SL::IsEnabled();
+
+        _suppressStatusLineToggle = true;
+        StatusLineToggle().IsOn(on);
+        _suppressStatusLineToggle = false;
+
+        if (on)
+            StatusLineHint().Text(L"On — restart Claude Code, or start a new session, to see it.");
+        else if (SL::HasForeignStatusLine())
+            StatusLineHint().Text(L"A different status line is configured. Turning this on replaces it; turning it off restores it.");
+        else
+            StatusLineHint().Text(L"");
+    }
+
+    void SettingsDialog::_StatusLineToggled(const IInspectable& /*sender*/, const RoutedEventArgs& /*e*/)
+    {
+        if (_suppressStatusLineToggle) return;
+
+        namespace SL = ClickTerminal::ClaudeStatusLine;
+
+        const bool wantOn = StatusLineToggle().IsOn();
+        std::wstring error;
+        const bool ok = wantOn ? SL::Enable(error) : SL::Disable(error);
+
+        if (!ok)
+        {
+            // Snap the switch back so it never claims a state we failed to write.
+            _suppressStatusLineToggle = true;
+            StatusLineToggle().IsOn(!wantOn);
+            _suppressStatusLineToggle = false;
+            StatusLineHint().Text(winrt::hstring{ L"Failed: " + error });
+            return;
+        }
+
+        StatusLineHint().Text(wantOn
+            ? winrt::hstring{ L"On — restart Claude Code, or start a new session, to see it." }
+            : winrt::hstring{ L"Off — the statusLine entry was removed from ~/.claude/settings.json." });
+    }
 
     void SettingsDialog::_SetUpdateIdle(const std::wstring& status)
     {

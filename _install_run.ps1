@@ -1,16 +1,19 @@
-# Self-elevate to admin if needed
+﻿# Self-elevate to admin if needed
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell -Verb RunAs -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     exit
 }
+
+# Repo root — derived so a renamed/moved checkout keeps working.
+$root = $PSScriptRoot
 
 Write-Host "================================================"
 Write-Host "  ClickTerminal Install (Register mode)"
 Write-Host "================================================"
 Write-Host ""
 
-$manifestPath = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\AppxManifest.xml"
-$cerPath      = "D:\Dev\20_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer"
+$manifestPath = "$root\_msix_extract\pkg\AppxManifest.xml"
+$cerPath      = "$root\_msix_extract\ClickTerminalDev_new.cer"
 $userProfile  = (Get-ItemProperty "HKCU:\Volatile Environment" -ErrorAction SilentlyContinue).USERPROFILE
 if (-not $userProfile) { $userProfile = $env:USERPROFILE }
 $realData     = "$userProfile\AppData\Local\ClickTerminal"
@@ -48,7 +51,7 @@ if ($devMode) {
     }
 }
 if (-not $ok) {
-    $msixPath = "D:\Dev\20_PC\ClickTerminal\_msix_extract\CascadiaPackage_new.msix"
+    $msixPath = "$root\_msix_extract\CascadiaPackage_new.msix"
     try {
         Add-AppxPackage -Path $msixPath -ForceApplicationShutdown -ErrorAction Stop
         $ok = $true

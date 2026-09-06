@@ -585,7 +585,7 @@ li > ul, li > ol { margin: 4px 0; }
 └─────────────────────────────────────────────────────┘</div>
 
 <h2 id="dir-root">디렉토리 구조 — 전체 루트</h2>
-<pre><div class="code-header"><span class="code-lang">directory tree</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>D:\Dev\20_PC\ClickTerminal\
+<pre><div class="code-header"><span class="code-lang">directory tree</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>D:\Dev\02_PC\ClickTerminal\
 ├── src/
 │   ├── cascadia/
 │   │   ├── TerminalApp/          ← WinUI 컴포넌트 (메인 작업 폴더)
@@ -1093,12 +1093,12 @@ Stop-Process -Id $PID</code></pre>
 
 <h2 id="step1-msbuild">[1/5] MSBuild 컴파일</h2>
 <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-$vcxproj = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\TerminalAppLib.vcxproj"
+$vcxproj = "D:\Dev\02_PC\ClickTerminal\src\cascadia\TerminalApp\TerminalAppLib.vcxproj"
 
 &amp; $msbuild $vcxproj `
     /p:Configuration=Release `
     /p:Platform=x64 `
-    /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" `   # ← 필수! MSB4019 방지
+    /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\" `   # ← 필수! MSB4019 방지
     /t:Build /m /nologo /verbosity:minimal</code></pre>
 
 <blockquote><strong>/p:SolutionDir 필수 이유</strong>: <code>.vcxproj</code>만 빌드하면 <code>$(SolutionDir)</code>이 vcxproj 폴더로 설정됩니다. <code>CollectWildcardResources.targets</code>를 잘못된 경로에서 찾아 MSB4019 에러가 발생합니다.</blockquote>
@@ -1115,21 +1115,21 @@ if ($newerSources) {
 }</code></pre>
 
 <h2 id="step2-dll">[2/5] DLL 복사</h2>
-<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$src = "D:\Dev\20_PC\ClickTerminal\bin\x64\Release\TerminalApp\"
-$dst = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\TerminalApp\"
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>$src = "D:\Dev\02_PC\ClickTerminal\bin\x64\Release\TerminalApp\"
+$dst = "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\TerminalApp\"
 Copy-Item "$src\TerminalApp.dll"   $dst -Force
 Copy-Item "$src\TerminalApp.winmd" $dst -Force</code></pre>
 
 <h2 id="step3-pri">[3/5] resources.pri 재생성</h2>
 <blockquote><strong>왜 필수인가</strong>: <code>resources.pri</code>는 모든 XAML의 XBF(컴파일된 바이너리)를 Base64로 내장합니다. DLL만 교체하면 C++ 코드는 새 버전이지만 XBF는 구 버전 → <code>InitializeComponent()</code> 실패 → <strong>FAST_FAIL 크래시</strong>.</blockquote>
-<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Set-Location "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+<pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Set-Location "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage"
 
 &amp; "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe" `
     new `
-    /pr "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
+    /pr "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
     /cf "obj\x64\Release\priconfig.xml" `
     /o `
-    /of "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\resources.pri"</code></pre>
+    /of "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\resources.pri"</code></pre>
 
 <h2 id="step4-sign">[4/5] 서명 파일 정리</h2>
 <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>Remove-Item "_msix_extract\pkg\AppxSignature.p7x" -ErrorAction SilentlyContinue
@@ -1230,7 +1230,7 @@ Loaded([this](...) { ProjectNameBox().Focus(FocusState::Programmatic); });</code
     <div class="bug-label">원인</div>
     <p><code>.sln</code> 없이 <code>.vcxproj</code>만 빌드하면 <code>$(SolutionDir)</code>이 vcxproj 폴더로 설정되어 targets 파일을 잘못된 경로에서 찾습니다.</p>
     <div class="bug-label">해결</div>
-    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&amp; $msbuild $vcxproj /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" ...</code></pre>
+    <pre><div class="code-header"><span class="code-lang">powershell</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div><code>&amp; $msbuild $vcxproj /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\" ...</code></pre>
   </div>
 </div>
 

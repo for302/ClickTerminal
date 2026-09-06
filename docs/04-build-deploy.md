@@ -90,12 +90,12 @@ src\cascadia\TerminalApp\
 
 ```powershell
 $msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-$vcxproj = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\dll\TerminalApp.vcxproj"
+$vcxproj = "D:\Dev\02_PC\ClickTerminal\src\cascadia\TerminalApp\dll\TerminalApp.vcxproj"
 
 & $msbuild $vcxproj `
     /p:Configuration=Release `
     /p:Platform=x64 `
-    /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" `
+    /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\" `
     /t:Build `
     /m `
     /nologo `
@@ -107,13 +107,13 @@ $vcxproj = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\dll\TerminalApp.
 `.sln` 없이 `.vcxproj`만 빌드하면 `$(SolutionDir)`이 vcxproj 디렉토리로 설정됩니다.
 
 ```
-❌ SolutionDir = D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\
+❌ SolutionDir = D:\Dev\02_PC\ClickTerminal\src\cascadia\TerminalApp\
    → CollectWildcardResources.targets를
      TerminalApp\build\rules\ 에서 찾음 → 없음 → MSB4019 에러
 
-✅ /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\"
+✅ /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\"
    → CollectWildcardResources.targets를
-     D:\Dev\20_PC\ClickTerminal\build\rules\ 에서 찾음 → 정상
+     D:\Dev\02_PC\ClickTerminal\build\rules\ 에서 찾음 → 정상
 ```
 
 ### 빌드 결과물
@@ -147,8 +147,8 @@ if ($newerSources) {
 ## [2/5] DLL 복사
 
 ```powershell
-$src = "D:\Dev\20_PC\ClickTerminal\bin\x64\Release\TerminalApp\"
-$dst = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\TerminalApp\"
+$src = "D:\Dev\02_PC\ClickTerminal\bin\x64\Release\TerminalApp\"
+$dst = "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\TerminalApp\"
 
 Copy-Item "$src\TerminalApp.dll"  $dst -Force
 Copy-Item "$src\TerminalApp.winmd" $dst -Force
@@ -179,14 +179,14 @@ XAML을 건드리지 않았더라도 DLL 교체 시 XBF 불일치가 발생할 �
 ### 명령
 
 ```powershell
-Set-Location "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+Set-Location "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage"
 
 & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe" `
     new `
-    /pr "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
+    /pr "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
     /cf "obj\x64\Release\priconfig.xml" `
     /o `
-    /of "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
+    /of "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
 ```
 
 | 인자 | 설명 |
@@ -218,9 +218,9 @@ Remove-Item "_msix_extract\pkg\AppxBlockMap.xml"  -ErrorAction SilentlyContinue
 ### 인증서 등록
 
 ```powershell
-$cerPath = "D:\Dev\20_PC\ClickTerminal\ClickTerminalDev.cer"
+$cerPath = "D:\Dev\02_PC\ClickTerminal\ClickTerminalDev.cer"
 # 대안 경로
-# $cerPath = "D:\Dev\20_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer"
+# $cerPath = "D:\Dev\02_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer"
 
 Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
 Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" | Out-Null
@@ -238,7 +238,7 @@ $ok = $false
 if ($devMode) {
     # 폴더 직접 등록 (빠름, Developer Mode 전용)
     try {
-        $manifest = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\AppxManifest.xml"
+        $manifest = "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\AppxManifest.xml"
         Add-AppxPackage -Register $manifest -ForceApplicationShutdown
         $ok = $true
     } catch { }
@@ -255,7 +255,7 @@ if (-not $ok) {
 ### makeappx — MSIX 패킹
 
 ```powershell
-Set-Location "D:\Dev\20_PC\ClickTerminal\_msix_extract"
+Set-Location "D:\Dev\02_PC\ClickTerminal\_msix_extract"
 
 & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe" `
     pack `
@@ -291,7 +291,7 @@ Set-Location "D:\Dev\20_PC\ClickTerminal\_msix_extract"
 ### Add-AppxPackage — 설치
 
 ```powershell
-Add-AppxPackage -Path "D:\Dev\20_PC\ClickTerminal\_msix_extract\CascadiaPackage_new.msix" `
+Add-AppxPackage -Path "D:\Dev\02_PC\ClickTerminal\_msix_extract\CascadiaPackage_new.msix" `
     -ForceApplicationShutdown
 ```
 

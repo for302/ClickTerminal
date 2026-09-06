@@ -73,9 +73,9 @@ error MSB4019: 가져온 프로젝트
 MSBuild를 `.sln` 없이 `.vcxproj`만 직접 빌드하면 `$(SolutionDir)`이 vcxproj 파일이 있는 폴더로 설정됩니다.
 
 ```
-SolutionDir = D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\
+SolutionDir = D:\Dev\02_PC\ClickTerminal\src\cascadia\TerminalApp\
 → 찾는 경로: TerminalApp\build\rules\CollectWildcardResources.targets  (없음)
-실제 경로:   D:\Dev\20_PC\ClickTerminal\build\rules\CollectWildcardResources.targets
+실제 경로:   D:\Dev\02_PC\ClickTerminal\build\rules\CollectWildcardResources.targets
 ```
 
 **해결**  
@@ -83,7 +83,7 @@ MSBuild 호출 시 반드시 `/p:SolutionDir` 명시:
 
 ```powershell
 & $msbuild $vcxproj `
-    /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" `
+    /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\" `
     ...
 ```
 
@@ -105,12 +105,12 @@ MSBuild 호출 시 반드시 `/p:SolutionDir` 명시:
 빌드 후 반드시 `makepri` 실행:
 
 ```powershell
-Set-Location "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+Set-Location "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage"
 & $makepri new `
-    /pr "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
+    /pr "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
     /cf "obj\x64\Release\priconfig.xml" `
     /o `
-    /of "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
+    /of "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
 ```
 
 XAML을 수정하지 않았더라도 재패키징 시 항상 실행.

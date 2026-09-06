@@ -4,18 +4,21 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
+# Repo root — derived so a renamed/moved checkout keeps working.
+$root = $PSScriptRoot
+
 $msbuild   = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
-$vcxproj   = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\dll\TerminalApp.vcxproj"
+$vcxproj   = "$root\src\cascadia\TerminalApp\dll\TerminalApp.vcxproj"
 $makepri   = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe"
 $makeappx  = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makeappx.exe"
 $signtool  = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
 
-$binDir    = "D:\Dev\20_PC\ClickTerminal\bin\x64\Release\TerminalApp"
-$pkgDir    = "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg"
-$priRoot   = "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+$binDir    = "$root\bin\x64\Release\TerminalApp"
+$pkgDir    = "$root\_msix_extract\pkg"
+$priRoot   = "$root\src\cascadia\CascadiaPackage"
 $priConfig = "$priRoot\obj\x64\Release\priconfig.xml"
-$pfx       = "D:\Dev\20_PC\ClickTerminal\ClickTerminalDev.pfx"
-$msix      = "D:\Dev\20_PC\ClickTerminal\_msix_extract\CascadiaPackage_new.msix"
+$pfx       = "$root\ClickTerminalDev.pfx"
+$msix      = "$root\_msix_extract\CascadiaPackage_new.msix"
 $manifest  = "$pkgDir\AppxManifest.xml"
 
 Write-Host "================================================"
@@ -27,7 +30,7 @@ Write-Host ""
 $dllBin = "$binDir\TerminalApp.dll"
 if (Test-Path $dllBin) {
     $dllTime = (Get-Item $dllBin).LastWriteTime
-    $srcRoot = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp"
+    $srcRoot = "$root\src\cascadia\TerminalApp"
     $stale = Get-ChildItem "$srcRoot\*.cpp","$srcRoot\*.h","$srcRoot\*.xaml" -ErrorAction SilentlyContinue |
              Where-Object { $_.LastWriteTime -gt $dllTime }
     if ($stale) {
@@ -47,7 +50,7 @@ Write-Host ""
 # ---- Step 1: Build ----
 Write-Host "[1/6] Building TerminalApp.dll..." -ForegroundColor Cyan
 $buildStartTime = Get-Date
-& $msbuild $vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" /t:Build /m /nologo /verbosity:minimal
+& $msbuild $vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="$root\" /t:Build /m /nologo /verbosity:minimal
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      BUILD FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
     Write-Host "Press any key to exit..."
@@ -74,7 +77,7 @@ Write-Host "      DLL copied" -ForegroundColor Green
 # the same number as 0.0.NN.0 or Add-AppxPackage sees no upgrade and the in-app
 # updater has nothing to compare against.
 Write-Host "[3/6] Syncing package version..." -ForegroundColor Cyan
-$xamlPath = "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\TabRowControl.xaml"
+$xamlPath = "$root\src\cascadia\TerminalApp\TabRowControl.xaml"
 $verMatch = [regex]::Match((Get-Content $xamlPath -Raw), 'CTux v(\d+)\.(\d+)')
 if (-not $verMatch.Success) {
     Write-Host "      Could not find 'CTux v0.0NN' in TabRowControl.xaml - leaving manifest alone" -ForegroundColor Yellow
@@ -120,8 +123,8 @@ Write-Host "[6/6] Installing package..." -ForegroundColor Cyan
 
 # Trust signing certificate before install (required for MSIX path)
 $cerCandidates = @(
-    "D:\Dev\20_PC\ClickTerminal\ClickTerminalDev.cer",
-    "D:\Dev\20_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer"
+    "$root\ClickTerminalDev.cer",
+    "$root\_msix_extract\ClickTerminalDev_new.cer"
 )
 foreach ($cerPath in $cerCandidates) {
     if (Test-Path $cerPath) {
@@ -167,7 +170,7 @@ if ($devMode) {
 }
 if (-not $ok) {
     Write-Host "      Packing + signing MSIX..." -ForegroundColor Cyan
-    Push-Location "D:\Dev\20_PC\ClickTerminal\_msix_extract"
+    Push-Location "$root\_msix_extract"
     & $makeappx pack /d pkg /p CascadiaPackage_new.msix /nv /o
     if ($LASTEXITCODE -ne 0) {
         Write-Host "      makeappx FAILED (exit $LASTEXITCODE)" -ForegroundColor Red

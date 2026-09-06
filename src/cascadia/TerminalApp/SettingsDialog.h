@@ -26,6 +26,8 @@ namespace winrt::TerminalApp::implementation
                                   const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
         void _CheckUpdateClicked(const winrt::Windows::Foundation::IInspectable& sender,
                                  const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
+        void _StatusLineToggled(const winrt::Windows::Foundation::IInspectable& sender,
+                                const winrt::Windows::UI::Xaml::RoutedEventArgs& e);
 
         // Dialog lifecycle — resize with parent window
         void _DialogOpened(const winrt::Windows::UI::Xaml::Controls::ContentDialog& sender,
@@ -65,6 +67,13 @@ namespace winrt::TerminalApp::implementation
         winrt::fire_and_forget _RunUpdateCheck();
         winrt::fire_and_forget _RunUpdateDownload();
         void _SetUpdateIdle(const std::wstring& status);
+
+        // ---- Claude Code status line ----
+        // The toggle writes ~/.claude/settings.json directly, so it applies on
+        // flip rather than on Save; _suppressStatusLineToggle guards the
+        // programmatic IsOn() we do while loading current state.
+        void _LoadStatusLineState();
+        bool _suppressStatusLineToggle{ false };
 
         UpdateState _updateState{ UpdateState::Idle };
         std::wstring _updateDownloadUrl;

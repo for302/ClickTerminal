@@ -16,20 +16,20 @@
 - 대화 세션 중 여러 수정이 있어도 배포 시점 기준으로 한 번 올리면 됨
 - Claude는 작업 완료 후 배포 전에 버전을 올렸는지 **항상 확인하고 언급**한다
 
-**현재 버전**: v0.041
+**현재 버전**: v0.042
 
 ### 버전은 한 곳에만 적는다 — 나머지는 자동 동기화
 
 `TabRowControl.xaml`의 `CTux v0.0NN` 이 유일한 원본이다. 여기만 고치면 나머지는 따라온다:
 
 ```
-TabRowControl.xaml  "CTux v0.041"
+TabRowControl.xaml  "CTux v0.042"
         |  _build_and_deploy.ps1 [3/6] 이 파싱
         v
-AppxManifest.xml    Version="0.0.41.0"
+AppxManifest.xml    Version="0.0.42.0"
         |  설치 후 Package::Current().Id().Version().Build
         v
-탭바 라벨 · 설정창 "Installed v0.041" · 인앱 업데이트 비교값
+탭바 라벨 · 설정창 "Installed v0.042" · 인앱 업데이트 비교값
 ```
 
 - 런타임 코드는 XAML 리터럴이 아니라 **설치된 패키지 버전**을 읽는다
@@ -56,6 +56,45 @@ AppxManifest.xml    Version="0.0.41.0"
 설치 로직은 `Add-AppxPackage -ForceApplicationShutdown`(실패 시 제거 후 재설치)을 쓰고,
 그 전에 자식 셸을 먼저 정리한다(0xe0434352 방지). `-ForceApplicationShutdown`을 빼면
 인앱 업데이트가 "패키지 사용 중" 오류로 조용히 실패한다.
+
+---
+
+## Claude Code 상태줄 (설정창 → General → Claude Code Status Line)
+
+Claude Code가 터미널 하단에 그리는 바(모델 / 컨텍스트 사용량 / 비용 / 레이트리밋).
+**Claude Code 자체에는 on/off 스위치가 없다** — `~/.claude/settings.json` 의 `statusLine`
+커맨드가 stdout으로 출력하는 문자열을 그대로 그릴 뿐이다.
+그래서 우리 토글은 그 키를 직접 쓰고 지운다.
+
+공식 문서: https://code.claude.com/docs/en/statusline
+
+```
+설정창 ToggleSwitch  (SettingsDialog.xaml: StatusLineToggle)
+        |  SettingsDialog::_StatusLineToggled
+        v
+ClickTerminal::ClaudeStatusLine::Enable() / Disable()
+        |  CTuxClaudeStatusLine.cpp
+        v
+%USERPROFILE%\.claude\ctux-statusline.ps1   (스크립트 생성)
+%USERPROFILE%\.claude\settings.json         ("statusLine" 키만 추가/삭제)
+```
+
+- **Save/Cancel과 무관하게 토글 즉시 적용된다** — 우리 설정 파일이 아니라 남의 파일을
+  건드리는 동작이라, 실패를 그 자리에서 알려줘야 한다. 결과는 토글 아래 힌트 줄에 표시.
+- 기존에 **다른 statusLine이 있으면** `%LocalAppData%\ClickTerminal\ctux-statusline-backup.json`
+  으로 백업하고 덮어쓴다. off로 돌리면 백업을 되돌린다 (없으면 키를 그냥 지움).
+- settings.json은 **다른 키를 보존한 채 병합**한다 (jsoncpp read → modify → write).
+  단 jsoncpp가 키를 정렬하므로 순서와 주석은 유지되지 않는다.
+- 생성 스크립트는 **순수 ASCII**로 유지한다. 막대 글리프(▓░)는 `[char]0x2593` 식으로
+  런타임에 만든다 — BOM 없이도 안전하고, 에디터가 인코딩을 바꿔도 깨지지 않는다.
+- 커맨드 문자열의 경로는 **반드시 forward slash**. Windows에 Git Bash가 있으면 Claude Code가
+  statusLine을 Git Bash로 실행하는데, Git Bash가 따옴표 없는 백슬래시를 이스케이프로 먹어
+  아무 에러 없이 조용히 실패한다.
+- 상태줄 스크립트를 직접 테스트하려면 mock JSON을 파이프로:
+  ```powershell
+  '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":61}}' |
+      powershell -NoProfile -File "$env:USERPROFILE\.claude\ctux-statusline.ps1"
+  ```
 
 ---
 
@@ -96,11 +135,11 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 **증상**: `error MSB4019: 가져온 프로젝트 "...\TerminalApp\build\rules\CollectWildcardResources.targets"을(를) 찾을 수 없습니다.`
 
-**원인**: MSBuild를 `.sln` 없이 `.vcxproj`만 직접 빌드하면 `$(SolutionDir)`이 vcxproj 파일이 있는 폴더(`src\cascadia\TerminalApp\`)로 설정된다. 그래서 `TerminalApp\build\rules\CollectWildcardResources.targets`를 찾으려 하지만 실제 파일은 `D:\Dev\20_PC\ClickTerminal\build\rules\`에 있어 실패.
+**원인**: MSBuild를 `.sln` 없이 `.vcxproj`만 직접 빌드하면 `$(SolutionDir)`이 vcxproj 파일이 있는 폴더(`src\cascadia\TerminalApp\`)로 설정된다. 그래서 `TerminalApp\build\rules\CollectWildcardResources.targets`를 찾으려 하지만 실제 파일은 `D:\Dev\02_PC\ClickTerminal\build\rules\`에 있어 실패.
 
 **해결**: MSBuild 호출 시 `/p:SolutionDir` 명시 필수:
 ```powershell
-& $msbuild $vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="D:\Dev\20_PC\ClickTerminal\" /t:Build /m /nologo /verbosity:minimal
+& $msbuild $vcxproj /p:Configuration=Release /p:Platform=x64 /p:SolutionDir="D:\Dev\02_PC\ClickTerminal\" /t:Build /m /nologo /verbosity:minimal
 ```
 → `_build_and_deploy.ps1`에 이미 적용됨. 새 빌드 스크립트를 만들 때도 반드시 포함할 것.
 
@@ -143,11 +182,11 @@ DLL만 교체하면 DLL 안의 코드는 새로워지지만, resources.pri의 XB
 
 **재생성 명령** (CascadiaPackage obj 폴더의 priconfig.xml 활용):
 ```powershell
-Set-Location "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage"
+Set-Location "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage"
 & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\makepri.exe" `
-    new /pr "D:\Dev\20_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
+    new /pr "D:\Dev\02_PC\ClickTerminal\src\cascadia\CascadiaPackage" `
     /cf "obj\x64\Release\priconfig.xml" /o `
-    /of "D:\Dev\20_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
+    /of "D:\Dev\02_PC\ClickTerminal\_msix_extract\pkg\resources.pri"
 ```
 - priconfig.xml은 `obj\x64\Release\pri.resfiles`를 읽어 모든 컴포넌트 PRI를 병합
 - TerminalApp.pri는 `bin\x64\Release\TerminalApp\TerminalApp.pri` (새 빌드 결과물)
@@ -371,8 +410,8 @@ XAML을 건드리지 않았더라도, DLL 교체 시 resources.pri의 XBF와 C++
 
 **진단 명령**:
 ```powershell
-(Get-Item "D:\Dev\20_PC\ClickTerminal\src\cascadia\TerminalApp\ProjectSidebar.cpp").LastWriteTime
-(Get-Item "D:\Dev\20_PC\ClickTerminal\bin\x64\Release\TerminalApp\TerminalApp.dll").LastWriteTime
+(Get-Item "D:\Dev\02_PC\ClickTerminal\src\cascadia\TerminalApp\ProjectSidebar.cpp").LastWriteTime
+(Get-Item "D:\Dev\02_PC\ClickTerminal\bin\x64\Release\TerminalApp\TerminalApp.dll").LastWriteTime
 ```
 소스 타임스탬프 > DLL 타임스탬프 → 리빌드 필요.
 
@@ -402,8 +441,8 @@ Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\Roo
 Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" | Out-Null
 ```
 CER 파일 경로 우선순위:
-1. `D:\Dev\20_PC\ClickTerminal\ClickTerminalDev.cer`
-2. `D:\Dev\20_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer`
+1. `D:\Dev\02_PC\ClickTerminal\ClickTerminalDev.cer`
+2. `D:\Dev\02_PC\ClickTerminal\_msix_extract\ClickTerminalDev_new.cer`
 
 ### Add-AppxPackage 설치 방식 선택 — Developer Mode 여부에 따라 분기
 

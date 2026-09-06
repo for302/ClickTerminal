@@ -3,7 +3,8 @@
 
 $ErrorActionPreference = 'Stop'
 
-$root     = 'D:\Dev\20_PC\ClickTerminal'
+# Repo root — derived so a renamed/moved checkout keeps working.
+$root     = $PSScriptRoot
 $msixPath = "$root\_msix_extract\CascadiaPackage_new.msix"
 $cerPath  = "$root\_msix_extract\ClickTerminalDev_new.cer"
 $outExe   = "$root\ClickTerminal-Setup.exe"
