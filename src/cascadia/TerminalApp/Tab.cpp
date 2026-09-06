@@ -703,6 +703,137 @@ namespace winrt::TerminalApp::implementation
         return { original, newPane };
     }
 
+    // ClickTerminal: Method Description:
+    // - Same as SplitPane, but splits an explicitly given target pane instead
+    //   of the active pane. The target may be a leaf or a parent (non-leaf)
+    //   pane anywhere in this tab's tree; Pane::_Split mutates the target in
+    //   place, so this works for both cases. Tab is a friend of Pane, which
+    //   lets us call the private _Split directly and skip the focus-based
+    //   descent that Pane::Split performs.
+    // Arguments:
+    // - target: The pane in this tab's tree to split
+    // - splitType: The type of split we want to create
+    // - splitSize: The size of the split we want to create
+    // - pane: The new pane to add to the tree of panes; note that this pane
+    //         could itself be a parent pane/the root node of a tree of panes
+    // Return Value:
+    // - a pair of (the Pane that now holds the original content, the new Pane in the tree)
+    std::pair<std::shared_ptr<Pane>, std::shared_ptr<Pane>> Tab::SplitPaneAt(std::shared_ptr<Pane> target,
+                                                                             SplitDirection splitType,
+                                                                             const float splitSize,
+                                                                             std::shared_ptr<Pane> pane)
+    {
+        ASSERT_UI_THREAD();
+
+        if (!target || !pane)
+        {
+            return { nullptr, nullptr };
+        }
+
+        // Add the new event handlers to the new pane(s)
+        // and update their ids.
+        pane->WalkTree([&](const auto& p) {
+            _AttachEventHandlersToPane(p);
+            if (p->_IsLeaf())
+            {
+                p->Id(_nextPaneId);
+                if (const auto& content{ p->GetContent() })
+                {
+                    _AttachEventHandlersToContent(p->Id().value(), content);
+                }
+                _nextPaneId++;
+            }
+            return false;
+        });
+        pane->EnableBroadcast(_tabStatus.IsInputBroadcastActive());
+
+        // Make sure to take the ID before calling _Split() - _Split() will
+        // clear out the target pane's ID. A parent target has no ID, so this
+        // is empty in that case and the restore below is skipped.
+        const auto targetPaneId = target->Id();
+        // Depending on which direction will be split, the new pane can be
+        // either the first or second child, but this will always return the
+        // original pane first.
+        auto [original, newPane] = target->_Split(splitType, splitSize, pane);
+
+        // After split, Close Pane Menu Item should be visible
+        _closePaneMenuItem.Visibility(WUX::Visibility::Visible);
+
+        // The target pane has an id if it is a leaf
+        if (targetPaneId)
+        {
+            original->Id(targetPaneId.value());
+        }
+
+        _activePane = original;
+
+        // Add event handlers to the new panes' GotFocus event. When the pane
+        // gains focus, we'll mark it as the new active pane.
+        _AttachEventHandlersToPane(original);
+
+        // Immediately update our tracker of the focused pane now. If we're
+        // splitting panes during startup (from a commandline), then it's
+        // possible that the focus events won't propagate immediately. Updating
+        // the focus here will give the same effect though.
+        _UpdateActivePane(newPane);
+
+        return { original, newPane };
+    }
+
+    // ClickTerminal: Method Description:
+    // - Finds the deepest pane in this tab's tree that contains every one of
+    //   the given leaves. Descends from the root: as long as one of the
+    //   current node's children contains all the leaves, move to that child;
+    //   otherwise the current node is the common ancestor.
+    // Arguments:
+    // - leaves: The leaf panes whose common ancestor we want. If empty, the
+    //           root pane is returned; a single leaf returns that leaf itself.
+    // Return Value:
+    // - The deepest pane containing all of the given leaves.
+    std::shared_ptr<Pane> Tab::FindCommonAncestor(const std::vector<std::shared_ptr<Pane>>& leaves)
+    {
+        ASSERT_UI_THREAD();
+
+        if (leaves.empty())
+        {
+            return _rootPane;
+        }
+        if (leaves.size() == 1)
+        {
+            return leaves.front();
+        }
+
+        // True if `candidate` is, or contains as a descendant, every leaf.
+        const auto containsAll = [&leaves](const std::shared_ptr<Pane>& candidate) {
+            for (const auto& leaf : leaves)
+            {
+                if (candidate != leaf && !candidate->_HasChild(leaf))
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        auto current = _rootPane;
+        while (current && !current->_IsLeaf())
+        {
+            if (current->_firstChild && containsAll(current->_firstChild))
+            {
+                current = current->_firstChild;
+            }
+            else if (current->_secondChild && containsAll(current->_secondChild))
+            {
+                current = current->_secondChild;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return current;
+    }
+
     // Method Description:
     // - Removes the currently active pane from this tab. If that was the only
     //   remaining pane, then the entire tab is closed as well.

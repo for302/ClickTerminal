@@ -16,10 +16,12 @@ namespace winrt::TerminalApp::implementation
         void SetProjectList(winrt::hstring const& projectsJson);
         void SetSavedLayouts(winrt::hstring const& layoutsJson);
 
-        // Mode API: "add" | "edit" | "reorder". Unset = legacy combined view.
+        // Mode API: "add" | "edit" | "reorder" | "extend". Unset = legacy combined view.
         void SetMode(winrt::hstring const& mode);
         winrt::hstring Mode() { return _mode; }
         void SetEditTarget(winrt::hstring const& layoutId);
+        // extend mode: lock the current pane grid (base) and only allow growing it
+        void SetExtendBase(winrt::hstring const& baseJson);
 
         winrt::hstring LayoutName()    { return _layoutName; }
         winrt::hstring LayoutJson()    { return _layoutJson; }
@@ -64,8 +66,13 @@ namespace winrt::TerminalApp::implementation
         uint32_t _chosenCols{ 0 };
         int      _dragSourceSlot{ -1 };
 
-        winrt::hstring _mode;               // "" (legacy) | "add" | "edit" | "reorder"
+        winrt::hstring _mode;               // "" (legacy) | "add" | "edit" | "reorder" | "extend"
         int            _reorderDragSource{ -1 };
+
+        // extend mode: base (locked) grid — existing panes that must be preserved
+        uint32_t _baseRows{ 0 };
+        uint32_t _baseCols{ 0 };
+        std::vector<ClickTerminal::LayoutSlot> _baseSlots;
 
         // Per-slot ComboBox items (index = row*cols + col)
         std::vector<winrt::Windows::UI::Xaml::Controls::ComboBox> _slotBoxes;
@@ -80,6 +87,15 @@ namespace winrt::TerminalApp::implementation
 
         void _UpdateShapeCells();
         void _RebuildSlotGrid();
+        // extend mode: is the slot at flat index (row*_chosenCols+col) part of the locked base grid?
+        bool _IsSlotLocked(int32_t slotIdx) const
+        {
+            if (_mode != L"extend" || slotIdx < 0 || _chosenCols == 0)
+                return false;
+            const uint32_t r = static_cast<uint32_t>(slotIdx) / _chosenCols;
+            const uint32_t c = static_cast<uint32_t>(slotIdx) % _chosenCols;
+            return (r < _baseRows) && (c < _baseCols);
+        }
         void _PopulateSlotBox(winrt::Windows::UI::Xaml::Controls::ComboBox const& box,
                               const std::wstring& selectedId);
         winrt::hstring _BuildLayoutJson(const std::wstring& name);

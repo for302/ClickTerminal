@@ -172,19 +172,27 @@ namespace winrt::TerminalApp::implementation
     }
 
     // -----------------------------------------------------------------------
-    // Mode API: "add" | "edit" | "reorder". Unset = legacy combined view.
+    // Mode API: "add" | "edit" | "reorder" | "extend". Unset = legacy combined view.
     // -----------------------------------------------------------------------
 
     void LayoutPickerDialog::SetMode(hstring const& mode)
     {
         _mode = mode;
 
+        // Base-grid lock only applies to extend mode — clear stale state otherwise
+        if (_mode != L"extend")
+        {
+            _baseRows = 0;
+            _baseCols = 0;
+            _baseSlots.clear();
+        }
+
         const GridLength zeroLen { 0.0,   GridUnitType::Pixel };
         const GridLength leftLen { 210.0, GridUnitType::Pixel };
         const GridLength autoLen { 1.0,   GridUnitType::Auto  };
         const GridLength starLen { 1.0,   GridUnitType::Star  };
 
-        if (_mode == L"add" || _mode == L"edit")
+        if (_mode == L"add" || _mode == L"edit" || _mode == L"extend")
         {
             // Editor only
             SavedSection().Visibility(Visibility::Collapsed);
@@ -195,11 +203,24 @@ namespace winrt::TerminalApp::implementation
             RightCol().Width(starLen);
             RootGrid().Width(460);
             ReorderHint().Visibility(Visibility::Collapsed);
-            Title(winrt::box_value(hstring{ _mode == L"add" ? L"레이아웃 추가" : L"레이아웃 수정" }));
-            PrimaryButtonText(L"적용");
-            SecondaryButtonText(L"저장");
-            if (_mode == L"add")
+            if (_mode == L"extend")
+            {
+                // Split mode: existing panes are locked, only growing the grid is allowed
+                Title(winrt::box_value(hstring{ L"창 분할" }));
+                PrimaryButtonText(L"분할 적용");
+                SecondaryButtonText(L"");
                 _ResetEditor();
+                EditorTitle().Text(hstring{ L"격자 확장" });
+                // NameSection stays Collapsed (no name input for a split)
+            }
+            else
+            {
+                Title(winrt::box_value(hstring{ _mode == L"add" ? L"레이아웃 추가" : L"레이아웃 수정" }));
+                PrimaryButtonText(L"적용");
+                SecondaryButtonText(L"저장");
+                if (_mode == L"add")
+                    _ResetEditor();
+            }
         }
         else if (_mode == L"reorder")
         {
@@ -252,6 +273,59 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void LayoutPickerDialog::SetExtendBase(hstring const& baseJson)
+    {
+        _baseRows = 0;
+        _baseCols = 0;
+        _baseSlots.clear();
+        try
+        {
+            Json::Value root;
+            Json::CharReaderBuilder b;
+            std::string errs;
+            std::istringstream ss(winrt::to_string(baseJson));
+            if (Json::parseFromStream(b, ss, &root, &errs) && root.isObject())
+            {
+                auto toWide = [](const std::string& s) {
+                    if (s.empty()) return std::wstring{};
+                    int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+                    std::wstring r(static_cast<size_t>(len) - 1, L'\0');
+                    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, r.data(), len);
+                    return r;
+                };
+                _baseRows = static_cast<uint32_t>(std::clamp(root.get("rows", 1).asInt(), 1, 3));
+                _baseCols = static_cast<uint32_t>(std::clamp(root.get("cols", 1).asInt(), 1, 3));
+                for (const auto& sj : root["slots"])
+                {
+                    ClickTerminal::LayoutSlot slot;
+                    slot.Row       = static_cast<uint32_t>(sj.get("row", 0).asInt());
+                    slot.Col       = static_cast<uint32_t>(sj.get("col", 0).asInt());
+                    slot.ProjectId = toWide(sj.get("projectId", "").asString());
+                    _baseSlots.push_back(slot);
+                }
+            }
+        }
+        catch (...) {}
+
+        if (_baseRows == 0 || _baseCols == 0)
+        {
+            _baseRows = 1;
+            _baseCols = 1;
+        }
+
+        // Start the editor at the base size; user can only grow from here
+        _chosenRows = _baseRows;
+        _chosenCols = _baseCols;
+        _UpdateShapeCells();
+        _RebuildSlotGrid();
+        SlotSection().Visibility(Visibility::Visible);
+        // NameSection stays Collapsed in extend mode
+
+        std::wstring lbl = std::to_wstring(_chosenRows) + L"행  ×  " +
+                           std::to_wstring(_chosenCols) + L"열  (현재 크기 — 셀을 클릭해 확장)";
+        ShapeLabel().Text(lbl);
+    }
+
     hstring LayoutPickerDialog::ReorderedIdsJson()
     {
         if (_mode != L"reorder")
@@ -290,6 +364,14 @@ namespace winrt::TerminalApp::implementation
 
         uint32_t r = static_cast<uint32_t>(std::stoul(tagStr.substr(0, comma)));
         uint32_t c = static_cast<uint32_t>(std::stoul(tagStr.substr(comma + 1)));
+
+        // extend mode: never allow shrinking below the locked base grid
+        if (_mode == L"extend" && (r + 1 < _baseRows || c + 1 < _baseCols))
+        {
+            _UpdateShapeCells(); // restore checked state the click may have toggled
+            return;
+        }
+
         _chosenRows = r + 1;
         _chosenCols = c + 1;
 
@@ -297,7 +379,8 @@ namespace winrt::TerminalApp::implementation
         _RebuildSlotGrid();
 
         SlotSection().Visibility(Visibility::Visible);
-        NameSection().Visibility(Visibility::Visible);
+        if (_mode != L"extend")
+            NameSection().Visibility(Visibility::Visible);
 
         std::wstring lbl = std::to_wstring(_chosenRows) + L"행  ×  " +
                            std::to_wstring(_chosenCols) + L"열";
@@ -312,6 +395,7 @@ namespace winrt::TerminalApp::implementation
             L"Cell10", L"Cell11", L"Cell12",
             L"Cell20", L"Cell21", L"Cell22"
         };
+        const bool extendMode = (_mode == L"extend");
         for (uint32_t ri = 0; ri < 3; ri++)
         {
             for (uint32_t ci = 0; ci < 3; ci++)
@@ -321,6 +405,9 @@ namespace winrt::TerminalApp::implementation
                 {
                     bool selected = (ri < _chosenRows) && (ci < _chosenCols);
                     cell.IsChecked(selected);
+                    // extend mode: clicking a cell that would shrink below the base is forbidden
+                    bool enabled = !extendMode || (ri + 1 >= _baseRows && ci + 1 >= _baseCols);
+                    cell.IsEnabled(enabled);
                 }
             }
         }
@@ -354,10 +441,15 @@ namespace winrt::TerminalApp::implementation
             grid.ColumnDefinitions().Append(cd);
         }
 
+        const bool extendMode = (_mode == L"extend");
+
         for (uint32_t r = 0; r < _chosenRows; r++)
         {
             for (uint32_t c = 0; c < _chosenCols; c++)
             {
+                // extend mode: slots inside the base grid are existing panes — locked
+                const bool locked = extendMode && (r < _baseRows) && (c < _baseCols);
+
                 Border outer;
                 Thickness borderThick{ 1.0, 1.0, 1.0, 1.0 };
                 outer.BorderThickness(borderThick);
@@ -367,8 +459,8 @@ namespace winrt::TerminalApp::implementation
                 outer.Margin(marginThick);
                 Thickness padThick{ 6.0, 6.0, 6.0, 6.0 };
                 outer.Padding(padThick);
-                outer.AllowDrop(true);
-                outer.CanDrag(true);
+                outer.AllowDrop(!locked);
+                outer.CanDrag(!locked);
 
                 uint32_t slotIdx = r * _chosenCols + c;
                 outer.Tag(winrt::box_value(static_cast<int32_t>(slotIdx)));
@@ -386,12 +478,50 @@ namespace winrt::TerminalApp::implementation
                 label.FontSize(10);
                 label.Opacity(0.5);
 
+                // Locked base slot: preselect the existing pane's project and freeze it
+                std::wstring initialId;
+                if (locked)
+                {
+                    for (const auto& s : _baseSlots)
+                    {
+                        if (s.Row == r && s.Col == c)
+                        {
+                            initialId = s.ProjectId;
+                            break;
+                        }
+                    }
+                }
+
                 ComboBox box;
                 box.PlaceholderText(L"— 기본 터미널 —");
                 box.HorizontalAlignment(HorizontalAlignment::Stretch);
-                _PopulateSlotBox(box, L"");
+                _PopulateSlotBox(box, initialId);
+                if (locked)
+                    box.IsEnabled(false);
 
-                inner.Children().Append(label);
+                if (locked)
+                {
+                    // Row: position label + lock glyph (existing pane marker)
+                    StackPanel labelRow;
+                    labelRow.Orientation(Orientation::Horizontal);
+                    labelRow.Spacing(4);
+
+                    TextBlock lockIcon;
+                    lockIcon.Text(hstring{ L"\xE72E" });
+                    // NOTE: namespace qualification required — bare FontFamily{...} resolves to
+                    // the Control::FontFamily() property accessor here (C2760)
+                    lockIcon.FontFamily(winrt::Windows::UI::Xaml::Media::FontFamily{ L"Segoe MDL2 Assets" });
+                    lockIcon.FontSize(10);
+                    lockIcon.Opacity(0.5);
+
+                    labelRow.Children().Append(label);
+                    labelRow.Children().Append(lockIcon);
+                    inner.Children().Append(labelRow);
+                }
+                else
+                {
+                    inner.Children().Append(label);
+                }
                 inner.Children().Append(box);
                 outer.Child(inner);
 
@@ -437,7 +567,14 @@ namespace winrt::TerminalApp::implementation
     {
         if (auto border = sender.try_as<Border>())
         {
-            _dragSourceSlot = winrt::unbox_value_or<int32_t>(border.Tag(), -1);
+            const auto slotIdx = winrt::unbox_value_or<int32_t>(border.Tag(), -1);
+            if (_IsSlotLocked(slotIdx))
+            {
+                // extend mode: locked base slots cannot be drag sources
+                e.Cancel(true);
+                return;
+            }
+            _dragSourceSlot = slotIdx;
             e.Data().SetText(L"layoutslot");
             e.DragUI().SetContentFromDataPackage();
         }
@@ -456,6 +593,8 @@ namespace winrt::TerminalApp::implementation
         {
             int32_t destSlot = winrt::unbox_value_or<int32_t>(border.Tag(), -1);
             if (destSlot < 0 || destSlot == _dragSourceSlot) return;
+            // extend mode: never swap into/out of a locked base slot
+            if (_IsSlotLocked(destSlot) || _IsSlotLocked(_dragSourceSlot)) return;
 
             auto srcIdx  = static_cast<size_t>(_dragSourceSlot);
             auto dstIdx  = static_cast<size_t>(destSlot);
@@ -551,7 +690,8 @@ namespace winrt::TerminalApp::implementation
     void LayoutPickerDialog::OnSaveClicked(const IInspectable&,
                                             const ContentDialogButtonClickEventArgs& args)
     {
-        if (_mode == L"reorder")
+        // reorder: no save concept. extend: secondary button is hidden; never save a split.
+        if (_mode == L"reorder" || _mode == L"extend")
             return;
         if (_chosenRows == 0)
         {

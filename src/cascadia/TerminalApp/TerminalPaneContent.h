@@ -27,6 +27,10 @@ namespace winrt::TerminalApp::implementation
 
         winrt::Windows::UI::Xaml::FrameworkElement GetRoot();
         winrt::Microsoft::Terminal::Control::TermControl GetTermControl();
+
+        // ClickTerminal: per-pane title header. Lives on the content (not the Pane)
+        // so it travels with the terminal when a split moves it to a new Pane.
+        void CTuxSetHeader(const winrt::Windows::UI::Xaml::UIElement& header);
         winrt::Windows::Foundation::Size MinimumSize();
         void Focus(winrt::Windows::UI::Xaml::FocusState reason = winrt::Windows::UI::Xaml::FocusState::Programmatic);
         void Close();
@@ -58,6 +62,11 @@ namespace winrt::TerminalApp::implementation
         // See BasicPaneEvents for most generic event definitions
 
     private:
+        // ClickTerminal: root = [header row (Auto), terminal row (*)]
+        winrt::Windows::UI::Xaml::Controls::Grid _ctuxRoot{ nullptr };
+        winrt::Windows::UI::Xaml::Controls::Border _ctuxHeader{ nullptr };
+        void _CTuxBuildRoot();
+
         winrt::Microsoft::Terminal::Control::TermControl _control{ nullptr };
         winrt::Microsoft::Terminal::TerminalConnection::ConnectionState _connectionState{ winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::NotConnected };
         winrt::Microsoft::Terminal::Settings::Model::Profile _profile{ nullptr };

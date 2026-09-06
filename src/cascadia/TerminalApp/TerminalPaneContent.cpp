@@ -48,9 +48,51 @@ namespace winrt::TerminalApp::implementation
         _controlEvents = {};
     }
 
+    // ClickTerminal: wrap the TermControl in a grid that reserves a top row for the
+    // pane title header. Built lazily so panes that never get a header are unaffected.
+    void TerminalPaneContent::_CTuxBuildRoot()
+    {
+        if (_ctuxRoot)
+        {
+            return;
+        }
+
+        winrt::Windows::UI::Xaml::Controls::Grid grid;
+        winrt::Windows::UI::Xaml::Controls::RowDefinition headerRow;
+        headerRow.Height({ 0.0, winrt::Windows::UI::Xaml::GridUnitType::Auto });
+        grid.RowDefinitions().Append(headerRow);
+        winrt::Windows::UI::Xaml::Controls::RowDefinition contentRow;
+        contentRow.Height({ 1.0, winrt::Windows::UI::Xaml::GridUnitType::Star });
+        // Never let the header starve the terminal: a TermControl with 0 usable
+        // rows makes ConptyCreatePseudoConsole fail with E_INVALIDARG.
+        contentRow.MinHeight(80.0);
+        grid.RowDefinitions().Append(contentRow);
+
+        winrt::Windows::UI::Xaml::Controls::Border header;
+        header.MaxHeight(48.0);
+        header.Visibility(winrt::Windows::UI::Xaml::Visibility::Collapsed);
+        winrt::Windows::UI::Xaml::Controls::Grid::SetRow(header, 0);
+        grid.Children().Append(header);
+
+        winrt::Windows::UI::Xaml::Controls::Grid::SetRow(_control, 1);
+        grid.Children().Append(_control);
+
+        _ctuxRoot = grid;
+        _ctuxHeader = header;
+    }
+
+    void TerminalPaneContent::CTuxSetHeader(const winrt::Windows::UI::Xaml::UIElement& header)
+    {
+        _CTuxBuildRoot();
+        _ctuxHeader.Child(header);
+        _ctuxHeader.Visibility(header ? winrt::Windows::UI::Xaml::Visibility::Visible
+                                      : winrt::Windows::UI::Xaml::Visibility::Collapsed);
+    }
+
     winrt::Windows::UI::Xaml::FrameworkElement TerminalPaneContent::GetRoot()
     {
-        return _control;
+        _CTuxBuildRoot();
+        return _ctuxRoot;
     }
     winrt::Microsoft::Terminal::Control::TermControl TerminalPaneContent::GetTermControl()
     {
@@ -58,7 +100,14 @@ namespace winrt::TerminalApp::implementation
     }
     winrt::Windows::Foundation::Size TerminalPaneContent::MinimumSize()
     {
-        return _control.MinimumSize();
+        auto size = _control.MinimumSize();
+        // Reserve room for the ClickTerminal pane title so resizing can't crush it
+        if (_ctuxHeader && _ctuxHeader.Visibility() == winrt::Windows::UI::Xaml::Visibility::Visible)
+        {
+            const auto headerHeight = _ctuxHeader.ActualHeight() > 0 ? static_cast<float>(_ctuxHeader.ActualHeight()) : 44.0f;
+            size.Height += headerHeight;
+        }
+        return size;
     }
     void TerminalPaneContent::Focus(winrt::Windows::UI::Xaml::FocusState reason)
     {

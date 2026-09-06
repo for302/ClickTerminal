@@ -34,7 +34,7 @@
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <TextBlock x:Name="CTuxHeaderText"
-                                   Text="CTux v0.035"
+                                   Text="CTux v0.040"
                                    FontSize="14"
                                    FontWeight="Bold"
                                    VerticalAlignment="Center"

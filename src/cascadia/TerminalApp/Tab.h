@@ -41,6 +41,14 @@ namespace winrt::TerminalApp::implementation
                                                                           const float splitSize,
                                                                           std::shared_ptr<Pane> newPane);
 
+        // ClickTerminal: split an arbitrary target pane (leaf or parent) instead of the active one
+        std::pair<std::shared_ptr<Pane>, std::shared_ptr<Pane>> SplitPaneAt(std::shared_ptr<Pane> target,
+                                                                            winrt::Microsoft::Terminal::Settings::Model::SplitDirection splitType,
+                                                                            const float splitSize,
+                                                                            std::shared_ptr<Pane> pane);
+        // ClickTerminal: deepest pane in the tree that contains every one of the given leaves
+        std::shared_ptr<Pane> FindCommonAncestor(const std::vector<std::shared_ptr<Pane>>& leaves);
+
         void ToggleSplitOrientation();
         void UpdateIcon(const winrt::hstring& iconPath, const winrt::Microsoft::Terminal::Settings::Model::IconStyle iconStyle);
         void HideIcon(const bool hide);

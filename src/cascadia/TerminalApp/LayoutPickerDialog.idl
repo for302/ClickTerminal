@@ -12,11 +12,14 @@ namespace TerminalApp
         // Set saved layouts before showing
         void SetSavedLayouts(String layoutsJson);   // JSON: Layout array
 
-        // Dialog mode: "add" | "edit" | "reorder". Unset = legacy combined view.
+        // Dialog mode: "add" | "edit" | "reorder" | "extend". Unset = legacy combined view.
         void SetMode(String mode);
         String Mode { get; };
         // edit mode: load one saved layout into the editor (call after SetSavedLayouts)
         void SetEditTarget(String layoutId);
+        // extend mode: lock the current pane grid and only allow growing it.
+        // baseJson: {rows, cols, slots:[{row,col,projectId}]}. Call after SetMode(L"extend").
+        void SetExtendBase(String baseJson);
 
         // Results
         String  LayoutName   { get; };

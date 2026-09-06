@@ -16,7 +16,7 @@
 - 대화 세션 중 여러 수정이 있어도 배포 시점 기준으로 한 번 올리면 됨
 - Claude는 작업 완료 후 배포 전에 버전을 올렸는지 **항상 확인하고 언급**한다
 
-**현재 버전**: v0.035
+**현재 버전**: v0.040
 
 ---
 
@@ -411,6 +411,71 @@ powershell -NoExit -ExecutionPolicy Bypass -NoProfile -File "%~dp0script.ps1"
 
 **해결**: 반드시 `Media::FontFamily{ L"Segoe MDL2 Assets" }` 처럼 네임스페이스 한정.
 (동적 UI를 멤버 함수에서 만들 때 반복되는 실수 — ProjectOrganizerDialog에서 발생했음)
+
+---
+
+### 앱이 갑자기 종료 + 재시작 후 `0x800700e1` — Defender 오탐 (코드 버그 아님)
+
+**증상**: 사용 중 앱이 갑자기 꺼졌다 켜지고, 터미널 탭에 아래 에러만 표시:
+```
+[error 2147942625 (0x800700e1) when launching `"C:\Program Files\PowerShell\7\pwsh.exe"']
+```
+
+**원인**: `0x800700e1` = `ERROR_VIRUS_INFECTED`.
+Windows Defender가 `OpenConsole.exe`(셸을 실제로 띄우는 ConPTY 호스트, 업스트림 원본 바이너리)를
+`Trojan:Win32/Cloxer`로 **오탐**해 실행 중 프로세스를 강제 종료하고 파일 접근을 차단한 것.
+파일은 삭제되지 않고 접근만 막히므로 `Get-FileHash`도 같은 오류로 실패한다.
+
+**주의**: 크래시 직전 사용자 동작(이미지 붙여넣기 등)과 인과관계가 없다.
+앱 크래시로 보여도 **먼저 Defender 탐지 기록부터 확인**할 것.
+
+**진단**:
+```powershell
+Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending |
+    Select-Object -First 5 InitialDetectionTime, ThreatID,
+        @{n='Resources';e={$_.Resources -join '; '}} | Format-List
+Get-MpThreat | Select-Object ThreatID, ThreatName, SeverityID
+```
+Resources에 `process:_pid:XXXXX`가 있으면 → Defender가 프로세스를 죽인 것.
+
+**해결**: `_fix_defender.bat` 실행 (관리자 자동 승격).
+패키지 폴더 + 빌드 출력 폴더를 Defender 제외에 추가하고 위협 기록을 정리한다.
+`C:\Program Files\WindowsApps` 전체를 제외하지 말 것 — 반드시 패키지 폴더 단위로.
+
+---
+
+### 배포 직후 "pwsh.exe - 응용 프로그램 오류" 0xe0434352 — 설치 스크립트 부작용 (코드 버그 아님)
+
+**증상**: 새 버전 설치 직후 `pwsh.exe - 응용 프로그램 오류: 알 수 없는 소프트웨어 예외 (0xe0434352)` 모달이 뜬다.
+열려 있던 페인 개수만큼 동시에 여러 개가 뜰 수 있다.
+
+**원인**: `0xe0434352` = .NET CLR 미처리 예외. 실제 예외는 아래와 같다:
+```
+System.InvalidOperationException: Cannot read keys when either application does not have a console
+   at Microsoft.PowerShell.PSConsoleReadLine.ReadKeyThreadProc()
+```
+설치 스크립트가 구버전 앱을 종료할 때 `OpenConsole.exe`(ConPTY 호스트)를 먼저 죽이면,
+그 아래에서 돌던 `pwsh.exe`들이 콘솔을 잃고 PSReadLine 키 입력 스레드에서 예외를 던지며 죽는다.
+
+**진단**: 크래시 시각과 설치 시작 시각이 1~2초 차이면 이 케이스다.
+```powershell
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='.NET Runtime'} |
+    Select-Object -First 1 TimeCreated, Message | Format-List
+```
+
+**해결**: 종료 순서를 뒤집는다 — **자식 셸을 먼저, 호스트를 나중에**.
+`_build_and_deploy.ps1` 에 이미 적용됨. 새 설치 스크립트를 만들 때도 반드시 포함할 것:
+```powershell
+$hostPids = @((Get-Process -Name OpenConsole, WindowsTerminal -ErrorAction SilentlyContinue).Id)
+if ($hostPids.Count -gt 0) {
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $hostPids -contains $_.ParentProcessId -and
+                       $_.Name -in @('pwsh.exe','powershell.exe','cmd.exe','wsl.exe','bash.exe') } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 400
+}
+# 그 다음에 WindowsTerminal / OpenConsole 종료
+```
 
 ---
 

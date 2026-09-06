@@ -1161,18 +1161,15 @@ namespace winrt::TerminalApp::implementation
                 if (auto sidebar = winrt::get_self<implementation::ProjectSidebar>(Sidebar()))
                     sidebar->SetActiveTerminalByTitle(tab.Title());
 
-                // ClickTerminal: show this tab's overlay strip if it has one,
-                // otherwise hide the strip (each layout tab keeps its own state)
-                if (auto ov = _CTuxFindOverlay(tab))
-                {
-                    _CTuxRepositionOverlay(*ov);
-                    PaneInfoStrip().Visibility(Visibility::Visible);
-                    PaneInfoStripRow().Height(WUX::GridLength{ 1.0, WUX::GridUnitType::Auto });
-                }
-                else
-                {
-                    _CTuxHideOverlayStrip();
-                }
+                // ClickTerminal: every terminal tab gets a title strip — lazily
+                // create a 1x1 overlay for tabs opened outside the CTux paths
+                // (plain + button). Non-terminal tabs (settings) stay stripless.
+                _CTuxEnsureOverlayForTab(tab);
+
+                // ClickTerminal: pane titles live inside each pane, so switching
+                // tabs needs no re-render — just make sure the legacy strip that
+                // used to sit above the content stays hidden.
+                _CTuxHideOverlayStrip();
             }
         }
     }

@@ -377,6 +377,7 @@ namespace winrt::TerminalApp::implementation
             std::vector<ClickTerminal::LayoutSlot> slots;
             std::vector<ClickTerminal::Project> projects;
             std::vector<std::weak_ptr<Pane>> slotPanes;  // parallel to slots
+            std::vector<std::wstring> nicknames;         // parallel to slots; session-only, never persisted
         };
         std::vector<CTuxTabOverlay> _ctuxTabOverlays;
 
@@ -398,6 +399,17 @@ namespace winrt::TerminalApp::implementation
         void _CTuxRemoveOverlay(const winrt::TerminalApp::Tab& tab);
         void _CTuxRepositionOverlay(const CTuxTabOverlay& ov);
         void _CTuxHideOverlayStrip();
+        void _CTuxSetTabOverlay(uint32_t rows, uint32_t cols,
+            const std::vector<ClickTerminal::LayoutSlot>& slots,
+            const std::vector<ClickTerminal::Project>& projects,
+            const winrt::TerminalApp::Tab& tab,
+            const std::vector<std::weak_ptr<Pane>>& slotPanes);
+        void _CTuxEnsureOverlayForTab(const winrt::TerminalApp::Tab& tab);
+        void _CTuxStartSlotsAI(const CTuxTabOverlay& ov, const std::vector<size_t>& slotIndices);
+        safe_void_coroutine _CTuxShowExtendDialog(winrt::TerminalApp::Tab tab);
+        void _CTuxExtendTabLayout(const winrt::TerminalApp::Tab& tab, uint32_t newRows, uint32_t newCols,
+            const std::vector<ClickTerminal::LayoutSlot>& allSlots);
+        Microsoft::Terminal::Settings::Model::NewTerminalArgs _CTuxArgsForProject(const ClickTerminal::Project* project) const;
         void _CTuxOpenLayoutTab(const std::wstring& name, uint32_t rows, uint32_t cols,
                                 const std::vector<ClickTerminal::LayoutSlot>& slots,
                                 const std::vector<ClickTerminal::Project>& projects);

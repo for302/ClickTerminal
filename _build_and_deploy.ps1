@@ -112,6 +112,18 @@ foreach ($cerPath in $cerCandidates) {
     }
 }
 
+# Kill the shells hosted by the terminal BEFORE their ConPTY host. Killing
+# OpenConsole first orphans pwsh, which then dies inside PSReadLine's ReadKey
+# thread ("Cannot read keys ... does not have a console") and pops a modal
+# "pwsh.exe - Application Error" 0xe0434352 dialog.
+$hostPids = @((Get-Process -Name OpenConsole, WindowsTerminal -ErrorAction SilentlyContinue).Id)
+if ($hostPids.Count -gt 0) {
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object { $hostPids -contains $_.ParentProcessId -and
+                       $_.Name -in @('pwsh.exe','powershell.exe','cmd.exe','wsl.exe','bash.exe') } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 400
+}
 Get-Process | Where-Object { $_.Name -like "*WindowsTerminal*" -or $_.Name -like "*OpenConsole*" } | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 try { Get-AppxPackage -AllUsers -Name "*WindowsTerminalDev*" | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue } catch {}
