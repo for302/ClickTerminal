@@ -362,6 +362,8 @@ namespace winrt::TerminalApp::implementation
         Sidebar().ReorderLayoutsRequested({ get_weak(), &TerminalPage::_SidebarReorderLayoutsRequested });
         Sidebar().OpenUrlRequested({ get_weak(), &TerminalPage::_SidebarOpenUrlRequested });
 
+        _CTuxStartInputModeWatch();
+
         // Apply saved CTux theme to tab row at startup
         {
             _CrashLog(L"[Create] loading CTux theme");

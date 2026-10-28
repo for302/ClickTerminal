@@ -1921,6 +1921,33 @@ namespace winrt::TerminalApp::implementation
             Automation::AutomationProperties::SetHelpText(restartConnectionMenuItem, restartConnectionToolTip);
         }
 
+        // ClickTerminal: manual escape hatch for stray "[I" / "[<35;..M" input
+        // left behind by a crashed app. Lives on the tab menu because the pane
+        // right-click menu is off by default (right-click pastes instead).
+        // Only the active pane — other panes may have a healthy app using the mouse.
+        Controls::MenuFlyoutItem resetInputModesMenuItem;
+        {
+            Controls::FontIcon resetInputModesSymbol;
+            resetInputModesSymbol.FontFamily(Media::FontFamily{ L"Segoe Fluent Icons, Segoe MDL2 Assets" });
+            resetInputModesSymbol.Glyph(L"\xE777"); // UpdateRestore
+
+            resetInputModesMenuItem.Click([weakThis](auto&&, auto&&) {
+                if (auto tab{ weakThis.get() })
+                {
+                    if (const auto reset = tab->GetActiveTerminalControl().try_as<winrt::Microsoft::Terminal::Control::ICTuxInputModeReset>())
+                    {
+                        reset.CTuxResetInputModes(false);
+                    }
+                }
+            });
+            resetInputModesMenuItem.Text(L"Reset Input Modes");
+            resetInputModesMenuItem.Icon(resetInputModesSymbol);
+
+            const winrt::hstring resetInputModesToolTip{ L"Stop mouse/focus reporting left on by a crashed program in the active pane" };
+            WUX::Controls::ToolTipService::SetToolTip(resetInputModesMenuItem, box_value(resetInputModesToolTip));
+            Automation::AutomationProperties::SetHelpText(resetInputModesMenuItem, resetInputModesToolTip);
+        }
+
         // Build the menu
         Controls::MenuFlyout contextMenuFlyout;
         Controls::MenuFlyoutSeparator menuSeparator;
@@ -1932,6 +1959,7 @@ namespace winrt::TerminalApp::implementation
         contextMenuFlyout.Items().Append(exportTabMenuItem);
         contextMenuFlyout.Items().Append(findMenuItem);
         contextMenuFlyout.Items().Append(restartConnectionMenuItem);
+        contextMenuFlyout.Items().Append(resetInputModesMenuItem);
         contextMenuFlyout.Items().Append(menuSeparator);
 
         auto closeSubMenu = _AppendCloseMenuItems(contextMenuFlyout);

@@ -384,6 +384,16 @@ namespace winrt::TerminalApp::implementation
         // ClickTerminal: Claude context-usage monitor tokens per project
         std::unordered_map<std::wstring, winrt::event_token> _aiOutputTokens;
 
+        // ClickTerminal: when a pane's foreground program dies without turning
+        // mouse/focus reporting off, reset those modes (CTuxIntegration.cpp).
+        SafeDispatcherTimer _ctuxInputModeTimer;
+        std::unordered_map<DWORD, std::vector<DWORD>> _ctuxShellChildren; // shell PID → child PIDs at last tick
+        void _CTuxStartInputModeWatch();
+        void _CTuxInputModeWatchTick(const winrt::Windows::Foundation::IInspectable& sender,
+                                     const winrt::Windows::Foundation::IInspectable& args);
+        static bool _CTuxResetInputModes(const winrt::Microsoft::Terminal::Control::TermControl& ctrl,
+                                         bool onlyIfMouseTracking);
+
         // ClickTerminal: session/overlay helpers — defined in CTuxIntegration.cpp
         void _CTuxPruneSessions();
         void _CTuxRegisterSession(const std::wstring& projectId, const std::wstring& toolId,

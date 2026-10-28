@@ -70,7 +70,12 @@ if ($dllAfterBuild -and $dllAfterBuild.LastWriteTime -lt $buildStartTime) {
 Write-Host "[2/6] Copying DLL to pkg..." -ForegroundColor Cyan
 Copy-Item "$binDir\TerminalApp.dll"   "$pkgDir\TerminalApp.dll"   -Force
 Copy-Item "$binDir\TerminalApp.winmd" "$pkgDir\TerminalApp.winmd" -Force
-Write-Host "      DLL copied" -ForegroundColor Green
+# Microsoft.Terminal.Control is built as a TerminalApp project reference. Since
+# v0.043 CTux adds ICTuxInputModeReset to it, so it has to ship too.
+$ctrlBin = "$root\bin\x64\Release\Microsoft.Terminal.Control"
+Copy-Item "$ctrlBin\Microsoft.Terminal.Control.dll"   "$pkgDir\Microsoft.Terminal.Control.dll"   -Force
+Copy-Item "$ctrlBin\Microsoft.Terminal.Control.winmd" "$pkgDir\Microsoft.Terminal.Control.winmd" -Force
+Write-Host "      DLL copied (TerminalApp + Microsoft.Terminal.Control)" -ForegroundColor Green
 
 # ---- Step 3: Sync package version with the authored CTux version ----
 # TabRowControl.xaml is where the version is authored; the manifest has to carry

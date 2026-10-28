@@ -16,14 +16,14 @@
 - 대화 세션 중 여러 수정이 있어도 배포 시점 기준으로 한 번 올리면 됨
 - Claude는 작업 완료 후 배포 전에 버전을 올렸는지 **항상 확인하고 언급**한다
 
-**현재 버전**: v0.042
+**현재 버전**: v0.044
 
 ### 버전은 한 곳에만 적는다 — 나머지는 자동 동기화
 
 `TabRowControl.xaml`의 `CTux v0.0NN` 이 유일한 원본이다. 여기만 고치면 나머지는 따라온다:
 
 ```
-TabRowControl.xaml  "CTux v0.042"
+TabRowControl.xaml  "CTux v0.044"
         |  _build_and_deploy.ps1 [3/6] 이 파싱
         v
 AppxManifest.xml    Version="0.0.42.0"
@@ -95,6 +95,40 @@ ClickTerminal::ClaudeStatusLine::Enable() / Disable()
   '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":61}}' |
       powershell -NoProfile -File "$env:USERPROFILE\.claude\ctux-statusline.ps1"
   ```
+
+---
+
+## 입력 모드 워치독 (v0.043~) — 죽은 프로그램이 남긴 마우스·포커스 보고 해제
+
+**증상**: Claude Code가 비정상 종료된 페인에 마우스를 올리면 `[<35;37;3M`, 포커스를 옮기면 `[I` / `[O`
+가 셸에 계속 입력된다. Claude가 켠 DECSET 1003+1006(마우스), 1004(포커스)를 끄지 못하고 죽었기 때문.
+
+**모드 상태가 두 군데 있다**: 앱의 VT 출력은 OpenConsole(conhost)을 **그대로 통과**해 터미널 코어에도
+도착하므로, 양쪽 `TerminalInput`이 같은 모드를 갖는다. 실제 입력 흐름은
+`터미널 코어가 SGR/ESC[I 생성 → ConPTY 입력 → conhost가 MOUSE/FOCUS 레코드로 해석 → conhost의 모드가 켜져 있으면 다시 텍스트로 셸에 전달`.
+→ **터미널 코어 쪽만 끄면 conhost까지 갈 것이 없어서 멈춘다.** OpenConsole.exe는 업스트림 바이너리라 손댈 수 없다.
+
+```
+TerminalPage::_ctuxInputModeTimer (2초)   CTuxIntegration.cpp
+   각 페인 ConptyConnection.RootProcessHandle() → 셸 PID
+   Toolhelp 스냅샷 1번으로 셸의 직계 자식 목록 비교
+   "지난 틱엔 자식이 있었는데 지금 0개" → _CTuxResetInputModes(ctrl, onlyIfMouseTracking=true)
+        v
+TermControl  →  ICTuxInputModeReset::CTuxResetInputModes   (TermControl.idl)
+        v
+ControlCore::CTuxResetInputModes → Terminal::Write("ESC[?1000l ... ?1004l ?2004l ?25h")
+```
+- 수동 (v0.044~): **탭 우클릭 메뉴 → Reset Input Modes** — 그 탭의 **활성 페인만** 리셋 (`Tab::_CreateContextMenu`).
+  페인 우클릭 메뉴에 두면 안 된다: `experimental.rightClickContextMenu`가 기본 off라 우클릭은 **클립보드 붙여넣기**가 된다
+  (v0.043에서 실기 확인). 탭 전체가 아닌 활성 페인만 하는 이유는 옆 페인의 정상 실행 중인 Claude 마우스까지 꺼지기 때문.
+- `HardResetWithoutErase()`를 쓰면 안 된다 — Win32 input mode(9001)까지 꺼져서 ConPTY 키 입력이 VT로 격하된다(Shift+Enter 등 손실).
+- 1004를 끄면 conhost도 포커스 이벤트를 못 받지만, 다음 앱이 1004를 켜거나 끄는 순간 복구된다(ConPTY가 1004l에 1004h를 주입).
+- **`ICTuxInputModeReset`은 별도 인터페이스로 둔다.** `TermControl` 본체에 메서드를 추가하면 기본 인터페이스 IID가 바뀌어
+  다시 빌드되지 않는 `Settings.Editor.dll`이 깨진다. TerminalApp은 `try_as`로 얻으므로 구버전 Control DLL이어도 크래시 없이 no-op.
+- 이 때문에 v0.043부터 **`Microsoft.Terminal.Control.dll`/`.winmd`도 패키지에 복사**한다 (`_build_and_deploy.ps1` [2/6]).
+  TerminalApp.vcxproj의 ProjectReference라 같은 빌드에서 함께 갱신된다.
+- 확인 방법: 페인에서 `` [Console]::Write("`e[?1003h`e[?1006h`e[?1004h") `` 후 `claude` 실행 → 다른 창에서 `Stop-Process`
+  → 2초 안에 `ctux-debug.log`에 `[CTux] input modes reset after child exit` 가 찍히고, `-NoProfile` pwsh에서도 문자가 안 들어와야 한다.
 
 ---
 

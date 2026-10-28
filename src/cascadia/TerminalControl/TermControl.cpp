@@ -537,6 +537,12 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         _core.HardResetWithoutErase();
     }
 
+    // ClickTerminal: see ICTuxInputModeReset in TermControl.idl
+    bool TermControl::CTuxResetInputModes(const bool onlyIfMouseTracking)
+    {
+        return get_self<ControlCore>(_core)->CTuxResetInputModes(onlyIfMouseTracking);
+    }
+
     void TermControl::_throttledUpdateScrollbar(const ScrollBarUpdate& update)
     {
         if (!_initializedTerminal)

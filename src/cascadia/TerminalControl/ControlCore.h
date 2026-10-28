@@ -256,6 +256,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         TerminalConnection::ITerminalConnection Connection();
         void Connection(const TerminalConnection::ITerminalConnection& connection);
         void HardResetWithoutErase();
+        bool CTuxResetInputModes(bool onlyIfMouseTracking);
 
         void AnchorContextMenu(til::point viewportRelativeCharacterPosition);
 

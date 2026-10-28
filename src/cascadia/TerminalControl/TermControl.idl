@@ -19,6 +19,17 @@ namespace Microsoft.Terminal.Control
         Boolean OnDirectKeyEvent(UInt32 vkey, UInt8 scanCode, Boolean down);
     }
 
+    // ClickTerminal: kept as a separate interface so TermControl's default
+    // interface IID stays the same and older consumers (Settings.Editor) still work.
+    [uuid("6f1c2a4e-3b7d-4c59-9e21-c7a5d0b84f13")]
+    interface ICTuxInputModeReset {
+        // Turns off mouse (1000/1002/1003/1005/1006/1015), focus (1004) and
+        // bracketed paste (2004) reporting and shows the cursor. With
+        // onlyIfMouseTracking, does nothing unless a mouse mode is still on.
+        // Returns true if the reset was applied.
+        Boolean CTuxResetInputModes(Boolean onlyIfMouseTracking);
+    }
+
     enum CursorDisplayState
     {
         Default,
@@ -29,6 +40,7 @@ namespace Microsoft.Terminal.Control
                                                    IDirectKeyListener,
                                                    IMouseWheelListener,
                                                    ICoreState,
+                                                   ICTuxInputModeReset,
                                                    Windows.UI.Xaml.Data.INotifyPropertyChanged
     {
         TermControl(ControlInteractivity content);

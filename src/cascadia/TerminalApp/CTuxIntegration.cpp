@@ -19,6 +19,7 @@
 #include "CTuxSettings.h"
 
 #include <ShlObj.h>
+#include <TlHelp32.h>
 #include <algorithm>
 #include <fstream>
 
@@ -232,6 +233,93 @@ namespace winrt::TerminalApp::implementation
                 }
             });
         timer.Start();
+    }
+
+    // ------------------------------------------------------------------------
+    // Input mode watchdog
+    //
+    // Claude Code turns on mouse (1003+1006) and focus (1004) reporting while
+    // it runs. If it is killed it can't turn them off, so every mouse move or
+    // focus change keeps typing "[<35;37;3M" / "[I" into the shell. We poll
+    // each pane's shell for child processes; when the last child is gone and
+    // a mouse mode is still on, the program died without cleaning up.
+    // ------------------------------------------------------------------------
+
+    bool TerminalPage::_CTuxResetInputModes(const TermControl& ctrl, bool onlyIfMouseTracking)
+    {
+        // Older Microsoft.Terminal.Control.dll builds don't implement this.
+        const auto reset = ctrl.try_as<ICTuxInputModeReset>();
+        if (!reset) return false;
+        return reset.CTuxResetInputModes(onlyIfMouseTracking);
+    }
+
+    void TerminalPage::_CTuxStartInputModeWatch()
+    {
+        _ctuxInputModeTimer.Interval(std::chrono::seconds(2));
+        _ctuxInputModeTimer.Tick({ get_weak(), &TerminalPage::_CTuxInputModeWatchTick });
+        _ctuxInputModeTimer.Start();
+    }
+
+    void TerminalPage::_CTuxInputModeWatchTick(const winrt::Windows::Foundation::IInspectable&,
+                                               const winrt::Windows::Foundation::IInspectable&)
+    {
+        std::vector<std::pair<DWORD, TermControl>> shells;
+        for (const auto& tab : _tabs)
+        {
+            const auto tabImpl = _GetTabImpl(tab);
+            if (!tabImpl) continue;
+            const auto root = tabImpl->GetRootPane();
+            if (!root) continue;
+            root->WalkTree([&](auto&& pane) {
+                const auto& ctrl = pane->GetTerminalControl();
+                if (!ctrl) return;
+                const auto conn = ctrl.Connection();
+                if (!conn) return;
+                const auto pty = conn.try_as<ConptyConnection>();
+                if (!pty) return;
+                if (const uint64_t process{ pty.RootProcessHandle() }; process != 0)
+                {
+                    if (const auto pid = ::GetProcessId(reinterpret_cast<HANDLE>(process)))
+                        shells.emplace_back(pid, ctrl);
+                }
+            });
+        }
+
+        if (shells.empty())
+        {
+            _ctuxShellChildren.clear();
+            return;
+        }
+
+        wil::unique_hfile snap{ ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+        if (!snap) return;
+
+        std::unordered_map<DWORD, std::vector<DWORD>> children;
+        for (const auto& [pid, ctrl] : shells)
+            children.emplace(pid, std::vector<DWORD>{});
+
+        PROCESSENTRY32W entry{};
+        entry.dwSize = sizeof(entry);
+        for (auto ok = ::Process32FirstW(snap.get(), &entry); ok; ok = ::Process32NextW(snap.get(), &entry))
+        {
+            if (const auto it = children.find(entry.th32ParentProcessID); it != children.end())
+                it->second.push_back(entry.th32ProcessID);
+        }
+
+        for (const auto& [pid, ctrl] : shells)
+        {
+            const auto& now = children[pid];
+            const auto prev = _ctuxShellChildren.find(pid);
+            if (prev == _ctuxShellChildren.end() || prev->second.empty() || !now.empty())
+                continue;
+
+            // Every child the shell had last tick has exited.
+            if (_CTuxResetInputModes(ctrl, true))
+                CTuxLog(L"[CTux] input modes reset after child exit, shell pid " + std::to_wstring(pid));
+        }
+
+        // Drop shells that no longer exist (closed panes, restarted connections).
+        _ctuxShellChildren = std::move(children);
     }
 
     // Subscribe to the connection output to track Claude context usage.

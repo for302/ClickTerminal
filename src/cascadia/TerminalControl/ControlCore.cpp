@@ -361,6 +361,24 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         _terminal->HardResetWithoutErase();
     }
 
+    // ClickTerminal: undo the input-reporting modes a crashed client left on.
+    // Unlike HardResetWithoutErase this keeps Win32 input mode, which ConPTY
+    // relies on. Only the terminal side is reset: once it stops sending mouse
+    // and focus sequences, ConPTY has nothing left to forward to the shell.
+    // Turning focus reporting off here also means ConPTY stops getting focus
+    // events until the next app toggles 1004 (ConPTY re-requests it on 1004l).
+    bool ControlCore::CTuxResetInputModes(const bool onlyIfMouseTracking)
+    {
+        const auto lock = _terminal->LockForWriting();
+        if (onlyIfMouseTracking && !_terminal->IsTrackingMouseInput())
+        {
+            return false;
+        }
+        _terminal->Write(L"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l"
+                         L"\x1b[?1004l\x1b[?2004l\x1b[?25h");
+        return true;
+    }
+
     bool ControlCore::Initialize(const float actualWidth,
                                  const float actualHeight,
                                  const float compositionScale)
